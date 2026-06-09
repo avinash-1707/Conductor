@@ -10,8 +10,10 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "declaration": true,
     "moduleDetection": "force",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
     "target": "ES2022",
     "lib": ["ES2022"]
   }

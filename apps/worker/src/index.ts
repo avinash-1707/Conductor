@@ -1,6 +1,6 @@
 // @conductor/worker — Temporal worker: deterministic workflows + side-effecting
 // activities. Bootstrap arrives in Unit 03. Placeholder keeps the package buildable.
 
-import { SHARED_PACKAGE } from "@conductor/shared";
+import { TASK_QUEUE } from "@conductor/shared";
 
-export const WORKER_PACKAGE = `${SHARED_PACKAGE}/worker` as const;
+export const WORKER_TASK_QUEUE = TASK_QUEUE;
