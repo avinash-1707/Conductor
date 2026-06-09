@@ -1,0 +1,3 @@
+// Activity registry — the object Worker.create({ activities }) registers.
+// All side-effecting code lives under activities/ (architecture invariant 1).
+export { greet } from "./hello";
