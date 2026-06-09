@@ -1,0 +1,57 @@
+# --- Project context (kept private to this working copy) ---
+CLAUDE.md
+context/
+reasoning.md
+
+# --- Dependencies ---
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+
+# --- TypeScript / build outputs ---
+dist/
+build/
+out/
+*.tsbuildinfo
+*.d.ts.map
+
+# --- Next.js (apps/web) ---
+.next/
+next-env.d.ts
+.vercel/
+
+# --- Turborepo ---
+.turbo/
+
+# --- Testing (Vitest / Playwright) ---
+coverage/
+.nyc_output/
+playwright-report/
+playwright/.cache/
+test-results/
+
+# --- Drizzle (generated SQL artifacts kept; local journals/meta scratch ignored) ---
+drizzle/.snapshot/
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Docker / local infra volumes ---
+infra/**/data/
+*.pid
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
