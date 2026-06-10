@@ -17,6 +17,18 @@ const envSchema = z.object({
   TEMPORAL_ADDRESS: z.string().min(1).default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().min(1).default("default"),
   LOG_LEVEL: z.string().min(1).default("info"),
+
+  // --- Auth (Better Auth) ---
+  // Min 32 chars. Defaulted to a clearly dev-only value so local runs/tests need
+  // zero config; PRODUCTION MUST override with `openssl rand -base64 32`.
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32)
+    .default("dev-only-insecure-better-auth-secret-change-me"),
+  BETTER_AUTH_URL: z.string().min(1).default("http://localhost:4000"),
+  // Google OAuth is enabled only when both are present.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

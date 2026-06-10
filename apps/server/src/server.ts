@@ -1,5 +1,6 @@
 import { buildApp } from "./app";
 import { createDeps } from "./deps";
+import { auth } from "./auth/auth";
 import { env } from "./env";
 import { logger } from "./logger";
 
@@ -10,7 +11,7 @@ import { logger } from "./logger";
  */
 async function main(): Promise<void> {
   const deps = createDeps(env);
-  const app = await buildApp({ checks: deps.checks });
+  const app = await buildApp({ checks: deps.checks, auth });
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {

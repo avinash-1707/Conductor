@@ -4,15 +4,20 @@ import cors from "@fastify/cors";
 import { env } from "./env";
 import { AppError } from "./errors";
 import { healthRoutes } from "./routes/health";
+import { registerAuth } from "./auth/plugin";
+import type { Auth } from "./auth/auth";
 import type { ReadinessChecks } from "./deps";
 
 /**
  * Builds the Fastify app (no `listen` — usable directly by `fastify.inject`
- * tests). Auth order, per-domain route plugins, and the WebSocket relay are
- * layered on in later units; this is the skeleton: logging with `requestId`,
- * CORS, the central typed error handler, and health/readiness.
+ * tests). When `auth` is provided, Better Auth is mounted at `/api/auth/*` and
+ * `requireSession`/`requireOwner` are decorated. Health-only tests omit it (no
+ * DB needed). Per-domain route plugins and the WebSocket relay layer on later.
  */
-export async function buildApp(opts: { checks: ReadinessChecks }): Promise<FastifyInstance> {
+export async function buildApp(opts: {
+  checks: ReadinessChecks;
+  auth?: Auth;
+}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: env.LOG_LEVEL, base: { app: "server" } },
     requestIdHeader: "x-request-id",
@@ -58,6 +63,10 @@ export async function buildApp(opts: { checks: ReadinessChecks }): Promise<Fasti
   });
 
   await app.register(healthRoutes, { checks: opts.checks });
+
+  if (opts.auth) {
+    await registerAuth(app, { auth: opts.auth });
+  }
 
   return app;
 }
