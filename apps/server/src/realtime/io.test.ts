@@ -155,6 +155,34 @@ describe("event isolation", () => {
   }, 15_000);
 });
 
+describe("org-wide approval fanout (Unit 23)", () => {
+  it("delivers approval.requested to org members without a run subscription, org-isolated", async () => {
+    const a = connect(ownerA.jwt);
+    const b = connect(ownerB.jwt);
+    await Promise.all([once(a, "connect"), once(b, "connect")]);
+    // Deliberately NO run subscription — the org room is joined at handshake.
+
+    let bReceived = false;
+    b.on("approval.event", () => {
+      bReceived = true;
+    });
+
+    const event: RunEvent = {
+      type: "approval.requested",
+      runId: runA.id,
+      approvalId: randomUUID(),
+      orgId: ownerA.orgId,
+      at: new Date().toISOString(),
+    };
+    const received = once<RunEvent>(a, "approval.event");
+    await new Promise((r) => setTimeout(r, 150));
+    await pub.publish(redisChannels.status(runA.id), JSON.stringify(event));
+
+    expect(await received).toEqual(event);
+    expect(bReceived).toBe(false);
+  }, 15_000);
+});
+
 describe("token stream relay (Unit 20)", () => {
   it("relays a token event on the stream channel to the run's room only", async () => {
     const a = connect(ownerA.jwt);

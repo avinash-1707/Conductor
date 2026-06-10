@@ -19,6 +19,7 @@ vi.mock("../env", () => ({
     RESEARCH_MODEL: "anthropic/claude-sonnet-4.5",
     WRITING_MODEL: "anthropic/claude-opus-4.8",
     PUBLISH_WEBHOOK_URL: undefined,
+    LLM_MODE: "live",
   },
 }));
 

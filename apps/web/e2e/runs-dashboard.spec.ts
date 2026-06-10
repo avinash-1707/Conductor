@@ -8,7 +8,9 @@ import { test, expect, type Page } from "@playwright/test";
  * the subject of the snapshot.
  */
 
-const SERVER = "http://localhost:4999";
+// Must match the config's NEXT_PUBLIC_SERVER_URL (the golden-path E2E server).
+// Every call this spec makes is intercepted by page.route before the network.
+const SERVER = "http://localhost:4100";
 const SESSION_TOKEN_KEY = "conductor.session-token";
 
 const RUNS_FIXTURE = {
@@ -89,6 +91,40 @@ async function mockBackend(page: Page) {
     route.fulfill({ json: { token: "test.jwt.token" } }),
   );
   await page.route(`${SERVER}/runs**`, (route) => route.fulfill({ json: RUNS_FIXTURE }));
+  // Onboarding checklist data (Unit 23) — everything complete, so the
+  // checklist hides itself and the snapshot stays the pure dashboard.
+  await page.route(`${SERVER}/orgs/api-key`, (route) =>
+    route.fulfill({ json: { configured: true, last4: "0000" } }),
+  );
+  await page.route(`${SERVER}/api/auth/organization/get-full-organization*`, (route) =>
+    route.fulfill({
+      json: {
+        id: "org_test",
+        name: "Acme Content",
+        slug: "acme",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        members: [
+          {
+            id: "m-1",
+            organizationId: "org_test",
+            userId: "u-1",
+            role: "owner",
+            createdAt: "2026-06-01T00:00:00.000Z",
+            user: { id: "u-1", name: "Demo Operator", email: "demo@conductor.dev" },
+          },
+          {
+            id: "m-2",
+            organizationId: "org_test",
+            userId: "u-2",
+            role: "member",
+            createdAt: "2026-06-01T00:00:00.000Z",
+            user: { id: "u-2", name: "Reviewer", email: "reviewer@conductor.dev" },
+          },
+        ],
+        invitations: [],
+      },
+    }),
+  );
 }
 
 test("populated run dashboard sorts attention-first", async ({ page }) => {

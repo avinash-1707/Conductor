@@ -11,6 +11,7 @@ import {
 import { env } from "../env";
 import { repos } from "../db";
 import { logger } from "../logger";
+import { createMockResearchLLM, createMockWritingLLM } from "./agents/mock";
 import { createOpenRouterResearchLLM, runResearch } from "./agents/research";
 import { createOpenRouterWritingLLM, runWriting } from "./agents/writing";
 import { withStepTracking } from "./with-step-tracking";
@@ -45,11 +46,16 @@ export const research = withStepTracking(
       "research agent running",
     );
     // Stream the synthesized summary token-by-token to the dashboard (Unit 20).
-    const llm = createOpenRouterResearchLLM({
-      apiKey,
-      model: env.RESEARCH_MODEL,
-      onDelta: ctx.emitToken,
-    });
+    // LLM_MODE=mock (Unit 23) swaps in the canned model — everything else
+    // (key resolution above, graph, streaming, projections) stays real.
+    const llm =
+      env.LLM_MODE === "mock"
+        ? createMockResearchLLM({ onDelta: ctx.emitToken })
+        : createOpenRouterResearchLLM({
+            apiKey,
+            model: env.RESEARCH_MODEL,
+            onDelta: ctx.emitToken,
+          });
     return runResearch({ topic, keywords, tone }, llm);
   },
 );
@@ -76,11 +82,14 @@ export const writeDraft = withStepTracking(
       "writing agent running",
     );
     // Stream the draft markdown token-by-token to the dashboard (Unit 20).
-    const llm = createOpenRouterWritingLLM({
-      apiKey,
-      model: env.WRITING_MODEL,
-      onDelta: ctx.emitToken,
-    });
+    const llm =
+      env.LLM_MODE === "mock"
+        ? createMockWritingLLM({ onDelta: ctx.emitToken })
+        : createOpenRouterWritingLLM({
+            apiKey,
+            model: env.WRITING_MODEL,
+            onDelta: ctx.emitToken,
+          });
     return runWriting({ topic, keywords, tone, wordCount, findings }, llm);
   },
 );

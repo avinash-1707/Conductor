@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TASK_QUEUE } from "@conductor/shared";
 
 /**
  * Server configuration, parsed once at startup. `DATABASE_URL`/`REDIS_URL`
@@ -16,6 +17,10 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   TEMPORAL_ADDRESS: z.string().min(1).default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().min(1).default("default"),
+  // Task queue override (Unit 23). Defaults to the shared constant; the
+  // golden-path E2E starts runs on an isolated queue so a stale dev worker
+  // can never pick them up. Must match the worker's value.
+  TEMPORAL_TASK_QUEUE: z.string().min(1).default(TASK_QUEUE),
   LOG_LEVEL: z.string().min(1).default("info"),
 
   // --- Auth (Better Auth) ---

@@ -9,9 +9,15 @@ import {
   Workflow,
   type LucideProps,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import { useCallback, type ComponentType } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Logo } from "@/components/landing/icons";
-import { useApprovalsQuery, pendingCountLabel } from "@/lib/use-approvals";
+import {
+  APPROVALS_QUERY_KEY,
+  useApprovalsQuery,
+  pendingCountLabel,
+} from "@/lib/use-approvals";
+import { useApprovalEvents } from "@/lib/use-run-events";
 import { OrgSwitcher } from "./org-switcher";
 
 type NavItem = { href: string; label: string; icon: ComponentType<LucideProps> };
@@ -27,6 +33,16 @@ export function Sidebar() {
   const pathname = usePathname();
   const approvals = useApprovalsQuery();
   const badge = pendingCountLabel(approvals.data);
+
+  // A new approval anywhere in the org refreshes the shared cache live — the
+  // badge here and the open queue page read the same entry (Unit 23).
+  const client = useQueryClient();
+  useApprovalEvents(
+    useCallback(
+      () => void client.invalidateQueries({ queryKey: APPROVALS_QUERY_KEY }),
+      [client],
+    ),
+  );
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line-soft bg-surface md:flex">

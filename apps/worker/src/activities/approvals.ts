@@ -64,6 +64,7 @@ export async function createApprovalRequest(
     type: "approval.requested",
     runId: run.id,
     approvalId: approval.id,
+    orgId,
     at,
   });
 

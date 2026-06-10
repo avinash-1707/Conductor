@@ -28,6 +28,8 @@ export interface RunGateway {
 export function createRunGateway(
   getConnection: () => Promise<Connection>,
   namespace: string,
+  // The queue runs start on (Unit 23: env-overridable so E2E runs isolated).
+  taskQueue: string = TASK_QUEUE,
 ): RunGateway {
   let client: Client | undefined;
   async function getClient(): Promise<Client> {
@@ -44,7 +46,7 @@ export function createRunGateway(
       // never import from each other); the name is pinned by the worker's
       // exported workflow function.
       const handle = await c.workflow.start("contentPipeline", {
-        taskQueue: TASK_QUEUE,
+        taskQueue,
         workflowId,
         args: [input],
       });

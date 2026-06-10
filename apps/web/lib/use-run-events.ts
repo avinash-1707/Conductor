@@ -44,6 +44,16 @@ export function useRunStream(
   }, [runId, handler, subscribeStream]);
 }
 
+/**
+ * Subscribe to org-wide approval events (Unit 23) — fires whenever any run in
+ * the active org requests an approval, with no per-run subscription. Pass a
+ * stable handler.
+ */
+export function useApprovalEvents(handler: (event: RunEvent) => void) {
+  const { subscribeApprovals } = useRunEventsContext();
+  useEffect(() => subscribeApprovals(handler), [handler, subscribeApprovals]);
+}
+
 export function useConnectionStatus(): ConnectionStatus {
   return useRunEventsContext().status;
 }

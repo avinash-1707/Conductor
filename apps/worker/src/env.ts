@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TASK_QUEUE } from "@conductor/shared";
 
 /**
  * Worker process configuration, parsed once at startup (never inside workflow
@@ -8,6 +9,10 @@ import { z } from "zod";
 const envSchema = z.object({
   TEMPORAL_ADDRESS: z.string().min(1).default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().min(1).default("default"),
+  // Task queue override (Unit 23). Defaults to the shared constant; the
+  // golden-path E2E runs worker+server on an isolated queue so a stale dev
+  // worker can never steal its activities. Must match the server's value.
+  TEMPORAL_TASK_QUEUE: z.string().min(1).default(TASK_QUEUE),
   // Projections + org API keys live in Postgres (Unit 12); same local default
   // as the server.
   DATABASE_URL: z
@@ -31,6 +36,11 @@ const envSchema = z.object({
   RESEARCH_MODEL: z.string().min(1).default("anthropic/claude-sonnet-4.5"),
   // Stronger model for the writing agent (Unit 06).
   WRITING_MODEL: z.string().min(1).default("anthropic/claude-opus-4.8"),
+  // "mock" swaps the OpenRouter-backed LLMs for deterministic canned ones
+  // (Unit 23 — the golden-path E2E's stubbed model). Streaming, projections,
+  // approvals, and the org-key path all stay real. NEVER set in production;
+  // the worker warn-logs loudly at boot when this is on.
+  LLM_MODE: z.enum(["live", "mock"]).default("live"),
   // Optional publish target. When set, the publish activity POSTs the draft with
   // an Idempotency-Key header; when absent it simulates delivery.
   PUBLISH_WEBHOOK_URL: z.url().optional(),

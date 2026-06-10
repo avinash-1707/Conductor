@@ -49,6 +49,9 @@ export async function buildApp(opts: {
   await app.register(cors, {
     origin: env.WEB_ORIGIN,
     credentials: true,
+    // @fastify/cors defaults to GET,HEAD,POST — without PUT here the browser
+    // preflight rejects the key-management PUT (found by the Unit 23 E2E).
+    methods: ["GET", "HEAD", "POST", "PUT"],
     // The browser auth client reads the session token / JWT from these headers
     // cross-origin (bearer flow); they must be exposed to client JS.
     exposedHeaders: ["set-auth-token", "set-auth-jwt"],

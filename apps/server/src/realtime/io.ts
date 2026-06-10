@@ -69,6 +69,10 @@ export function createRealtime(opts: {
   io.on("connection", (socket: Socket) => {
     const { orgId } = socket.data as SocketData;
 
+    // Every authed socket joins its org's room (Unit 23): org-wide events
+    // (new approval requests) reach the queue/badge without a run subscription.
+    void socket.join(`org:${orgId}`);
+
     socket.on("subscribe", async (runId: unknown, ack?: (res: unknown) => void) => {
       if (typeof runId !== "string") {
         ack?.({ ok: false, code: "bad_request" });
@@ -114,6 +118,12 @@ export function createRealtime(opts: {
         return;
       }
       io.to(runId).emit("run.event", event.data);
+      // New approval requests also fan out org-wide (the event carries its
+      // org, set by the worker from the verified workflow input) so the
+      // Approval Queue and sidebar badge update live (Unit 23).
+      if (event.data.type === "approval.requested") {
+        io.to(`org:${event.data.orgId}`).emit("approval.event", event.data);
+      }
       return;
     }
 

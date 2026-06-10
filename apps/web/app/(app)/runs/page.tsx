@@ -9,6 +9,7 @@ import { useConnectionStatus } from "@/lib/use-run-events";
 import { Button } from "@/components/app/ui";
 import { EmptyState, ErrorState, SkeletonRows } from "@/components/app/view-state";
 import { RUNS_QUERY_KEY, RunsTable } from "@/components/app/runs-table";
+import { OnboardingChecklist } from "@/components/app/onboarding-checklist";
 
 export default function RunsPage() {
   const query = useInfiniteQuery({
@@ -38,6 +39,11 @@ export default function RunsPage() {
         Every pipeline run for your organization shows up here, live — the ones
         needing attention rise to the top.
       </p>
+
+      {/* First-run onboarding (Unit 23) — hides itself once complete. */}
+      {query.status === "success" && (
+        <OnboardingChecklist hasRuns={runs.length > 0} />
+      )}
 
       {query.status === "pending" ? (
         <SkeletonRows rows={6} />

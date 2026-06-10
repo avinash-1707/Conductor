@@ -28,6 +28,12 @@ interface RunEventsContext {
   status: ConnectionStatus;
   subscribe: (runId: string, handler: Handler, onReconnect?: () => void) => () => void;
   subscribeStream: (runId: string, handler: StreamHandler) => () => void;
+  /**
+   * Org-wide approval events (Unit 23): every authed socket is in its org's
+   * room server-side, so no run subscription is needed — new approval
+   * requests arrive here and the queue/badge invalidate their shared cache.
+   */
+  subscribeApprovals: (handler: Handler) => () => void;
 }
 
 const Ctx = createContext<RunEventsContext | null>(null);
@@ -49,6 +55,7 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const handlers = useRef(new Map<string, Set<Handler>>());
   const streamHandlers = useRef(new Map<string, Set<StreamHandler>>());
+  const approvalHandlers = useRef(new Set<Handler>());
   const onReconnects = useRef(new Map<string, Set<() => void>>());
   const roomRefs = useRef(new Map<string, number>());
   const socketRef = useRef<Socket | null>(null);
@@ -107,6 +114,11 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
       const set = streamHandlers.current.get(parsed.data.runId);
       if (set) for (const fn of set) fn(parsed.data);
     });
+    socket.on("approval.event", (raw: unknown) => {
+      const parsed = runEventSchema.safeParse(raw);
+      if (!parsed.success) return;
+      for (const fn of approvalHandlers.current) fn(parsed.data);
+    });
 
     return () => {
       socket.removeAllListeners();
@@ -159,6 +171,13 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
           ss?.delete(handler);
           if (ss && ss.size === 0) streamHandlers.current.delete(runId);
           releaseRoom(runId);
+        };
+      },
+      subscribeApprovals(handler) {
+        // No room management: the server joins the org room at handshake.
+        approvalHandlers.current.add(handler);
+        return () => {
+          approvalHandlers.current.delete(handler);
         };
       },
     }),

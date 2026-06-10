@@ -29,9 +29,21 @@ describe("runEventSchema", () => {
         type: "approval.requested",
         runId: "r1",
         approvalId: "a1",
+        orgId: "org1",
         at,
       }).success,
     ).toBe(true);
+  });
+
+  it("rejects an approval.requested event without its org (org-room fanout)", () => {
+    expect(
+      runEventSchema.safeParse({
+        type: "approval.requested",
+        runId: "r1",
+        approvalId: "a1",
+        at,
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects attempt < 1 (boundary)", () => {

@@ -24,6 +24,10 @@ export const runEventSchema = z.discriminatedUnion("type", [
     type: z.literal("approval.requested"),
     runId: z.string().min(1),
     approvalId: z.string().min(1),
+    // Lets the server fan this event out to the org-wide room (Unit 23), so
+    // the Approval Queue and sidebar badge update live without a run
+    // subscription. Org members only — the org room is joined at handshake.
+    orgId: z.string().min(1),
     at: z.iso.datetime(),
   }),
 ]);
