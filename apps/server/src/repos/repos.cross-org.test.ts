@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { inArray } from "drizzle-orm";
-import type { BlogPostPipelineInput } from "@conductor/shared";
+import {
+  blogPostPipelineSpec,
+  graphSpecSchema,
+  type BlogPostPipelineInput,
+  type GraphSpec,
+} from "@conductor/shared";
 import { organization } from "@conductor/db";
 import { db, pool } from "../db/client";
 import { repos } from "./index";
@@ -180,6 +185,94 @@ describe("workflow_definitions isolation", () => {
     expect(
       (await definitionsRepo.listDefinitions({ orgId: orgB })).some((d) => d.id === def.id),
     ).toBe(false);
+  });
+
+  // Versioning (Unit 24): immutable version rows, auto-incremented per
+  // (org, name); pinning means the prior row survives a new version unchanged.
+  it("auto-increments versions and preserves prior version rows (pinning)", async () => {
+    const name = `Blog Pipeline ${randomUUID().slice(0, 8)}`;
+    const v1 = await definitionsRepo.createDefinitionVersion({
+      orgId: orgA,
+      name,
+      graphSpec: blogPostPipelineSpec,
+    });
+    expect(v1.version).toBe(1);
+    expect(v1.graphSpec).toEqual(blogPostPipelineSpec);
+
+    const editedSpec = graphSpecSchema.parse({
+      ...blogPostPipelineSpec,
+      nodes: blogPostPipelineSpec.nodes.map((n) =>
+        n.type === "research" ? { ...n, config: { maximumAttempts: 3 } } : n,
+      ),
+    });
+    const v2 = await definitionsRepo.createDefinitionVersion({
+      orgId: orgA,
+      name,
+      graphSpec: editedSpec,
+    });
+    expect(v2.version).toBe(2);
+    expect(v2.id).not.toBe(v1.id);
+
+    // The pinned v1 row is untouched by the v2 insert.
+    const v1Again = await definitionsRepo.findDefinitionById({ orgId: orgA, id: v1.id });
+    expect(v1Again?.version).toBe(1);
+    expect(v1Again?.graphSpec).toEqual(blogPostPipelineSpec);
+
+    expect(
+      (await definitionsRepo.findLatestDefinition({ orgId: orgA, name }))?.version,
+    ).toBe(2);
+    expect(
+      (await definitionsRepo.listDefinitionVersions({ orgId: orgA, name })).map(
+        (d) => d.version,
+      ),
+    ).toEqual([2, 1]);
+  });
+
+  it("rejects an invalid graph spec at the persistence door", async () => {
+    const invalid = {
+      ...blogPostPipelineSpec,
+      // research → research: a cycle with no entry point.
+      edges: [{ from: "research", to: "research" }],
+    } as unknown as GraphSpec;
+    await expect(
+      definitionsRepo.createDefinitionVersion({
+        orgId: orgA,
+        name: `Broken ${randomUUID().slice(0, 8)}`,
+        graphSpec: invalid,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("scopes version numbering and latest lookup per org", async () => {
+    const name = `Shared Name ${randomUUID().slice(0, 8)}`;
+    const a1 = await definitionsRepo.createDefinitionVersion({
+      orgId: orgA,
+      name,
+      graphSpec: blogPostPipelineSpec,
+    });
+    const b1 = await definitionsRepo.createDefinitionVersion({
+      orgId: orgB,
+      name,
+      graphSpec: blogPostPipelineSpec,
+    });
+    // Same template name, separate orgs — each starts its own version line.
+    expect(a1.version).toBe(1);
+    expect(b1.version).toBe(1);
+
+    await definitionsRepo.createDefinitionVersion({
+      orgId: orgA,
+      name,
+      graphSpec: blogPostPipelineSpec,
+    });
+    expect(
+      (await definitionsRepo.findLatestDefinition({ orgId: orgA, name }))?.version,
+    ).toBe(2);
+    expect(
+      (await definitionsRepo.findLatestDefinition({ orgId: orgB, name }))?.version,
+    ).toBe(1);
+    expect(await definitionsRepo.listDefinitionVersions({ orgId: orgB, name })).toHaveLength(
+      1,
+    );
   });
 });
 

@@ -4,5 +4,11 @@ import { db } from "../db/client";
 
 export type { Definition, NewDefinition } from "@conductor/db";
 
-export const { createDefinition, findDefinitionById, listDefinitions } =
-  createDefinitionsRepo(db);
+export const {
+  createDefinition,
+  createDefinitionVersion,
+  findDefinitionById,
+  findLatestDefinition,
+  listDefinitionVersions,
+  listDefinitions,
+} = createDefinitionsRepo(db);

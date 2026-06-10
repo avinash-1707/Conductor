@@ -15,6 +15,7 @@ import type {
   BlogPostPipelineInput,
   BlogPostPipelineOutput,
   ApprovalContext,
+  GraphSpec,
   PublishReceipt,
 } from "@conductor/shared";
 import { organization } from "./auth";
@@ -75,7 +76,13 @@ const updatedAt = () =>
     .$onUpdate(() => new Date())
     .notNull();
 
-/** Curated pipeline template; later the canvas graph_spec (Unit 24). */
+/**
+ * Curated pipeline template, one immutable row per version (Unit 24). The
+ * graph_spec is the versioned execution graph the interpreter walks (Unit 25);
+ * nullable only because rows could predate specs — Unit 26's curated templates
+ * always carry one. A new spec is always a new version row, never an update,
+ * so a run's definition_id pins exactly what it executed.
+ */
 export const workflowDefinitions = pgTable(
   "workflow_definitions",
   {
@@ -85,6 +92,7 @@ export const workflowDefinitions = pgTable(
     description: text("description"),
     version: integer("version").default(1).notNull(),
     parameters: jsonb("parameters").$type<Record<string, unknown>>().default({}).notNull(),
+    graphSpec: jsonb("graph_spec").$type<GraphSpec>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
