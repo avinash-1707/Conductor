@@ -9,6 +9,7 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type {
   BlogPostPipelineInput,
@@ -105,6 +106,12 @@ export const workflowRuns = pgTable(
     workflowName: text("workflow_name").notNull(),
     temporalWorkflowId: text("temporal_workflow_id").notNull(),
     temporalRunId: text("temporal_run_id"),
+    // The run this one was resumed from (Unit 22). Self-FK typed explicitly —
+    // drizzle needs the annotation to break the circular inference.
+    resumedFromRunId: uuid("resumed_from_run_id").references(
+      (): AnyPgColumn => workflowRuns.id,
+      { onDelete: "set null" },
+    ),
     status: runStatusEnum("status").default("pending").notNull(),
     input: jsonb("input").$type<BlogPostPipelineInput>().notNull(),
     output: jsonb("output").$type<BlogPostPipelineOutput>(),

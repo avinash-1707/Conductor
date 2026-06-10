@@ -260,3 +260,243 @@ describe("GET /runs/:id", () => {
     }
   });
 });
+
+describe("POST /runs/:id/resume", () => {
+  const findings = {
+    summary: "Prior research summary.",
+    sources: [
+      { title: "Source", url: "https://example.com/a", takeaway: "Takeaway." },
+    ],
+    keyPoints: ["Key point"],
+  };
+  const draft = { title: "Draft", markdown: "# Draft", wordCount: 900 };
+
+  /** Seeds a failed run the way the worker would have left it. */
+  async function seedFailedRun(
+    jwt: string,
+    orgId: string,
+    opts: {
+      researchCompleted?: boolean;
+      writeCompleted?: boolean;
+      approved?: boolean;
+    } = {},
+  ): Promise<RunResource> {
+    const run = await startRun(jwt);
+    if (opts.researchCompleted) {
+      await repos.activityLog.upsertStep({
+        orgId,
+        runId: run.id,
+        stepKind: "research",
+        status: "completed",
+        attempt: 2,
+        input: { topic: params.topic },
+        output: findings,
+        startedAt: new Date("2026-06-10T12:00:00.000Z"),
+        completedAt: new Date("2026-06-10T12:01:00.000Z"),
+      });
+      const approval = await repos.approvals.upsertApprovalForRun({
+        orgId,
+        runId: run.id,
+        context: { research: findings },
+      });
+      if (opts.approved) {
+        await repos.approvals.claimDecision({
+          orgId,
+          id: approval.id,
+          decision: "approved",
+          reviewerId: "user_reviewer",
+          decidedAt: new Date(),
+        });
+      }
+    }
+    if (opts.writeCompleted) {
+      await repos.activityLog.upsertStep({
+        orgId,
+        runId: run.id,
+        stepKind: "write",
+        status: "completed",
+        attempt: 1,
+        input: { topic: params.topic },
+        output: draft,
+        startedAt: new Date("2026-06-10T12:02:00.000Z"),
+        completedAt: new Date("2026-06-10T12:03:00.000Z"),
+      });
+    }
+    await repos.runs.markRunTerminal({
+      orgId,
+      temporalWorkflowId: run.temporalWorkflowId,
+      status: "failed",
+      error: "mock step failure",
+    });
+    return run;
+  }
+
+  async function resume(jwt: string, id: string) {
+    return app.inject({
+      method: "POST",
+      url: `/runs/${id}/resume`,
+      headers: { authorization: `Bearer ${jwt}` },
+    });
+  }
+
+  it("resumes a write failure at write with the carried research", async () => {
+    const { jwt, orgId } = await signUpOwner(app);
+    const prior = await seedFailedRun(jwt, orgId, {
+      researchCompleted: true,
+      approved: true,
+    });
+
+    const res = await resume(jwt, prior.id);
+    expect(res.statusCode, res.body).toBe(201);
+    const run = runSchema.parse(res.json());
+    expect(run.id).not.toBe(prior.id);
+    expect(run.status).toBe("pending");
+    expect(run.resumedFromRunId).toBe(prior.id);
+    expect(run.input).toEqual(params);
+
+    expect(starter.startContentPipeline).toHaveBeenLastCalledWith({
+      workflowId: `run-${run.id}`,
+      input: {
+        ...params,
+        orgId,
+        resumeFrom: { step: "write", priorOutputs: { research: findings } },
+      },
+    });
+
+    // The carried research row is visible on the new run's detail.
+    const detail = await app.inject({
+      method: "GET",
+      url: `/runs/${run.id}`,
+      headers: { authorization: `Bearer ${jwt}` },
+    });
+    const body = runDetailResponseSchema.parse(detail.json());
+    expect(body.run.resumedFromRunId).toBe(prior.id);
+    expect(body.steps).toHaveLength(1);
+    expect(body.steps[0]).toMatchObject({
+      stepKind: "research",
+      status: "completed",
+      attempt: 2,
+      output: findings,
+    });
+  });
+
+  it("resumes a publish failure at publish carrying research and write", async () => {
+    const { jwt, orgId } = await signUpOwner(app);
+    const prior = await seedFailedRun(jwt, orgId, {
+      researchCompleted: true,
+      writeCompleted: true,
+      approved: true,
+    });
+
+    const res = await resume(jwt, prior.id);
+    expect(res.statusCode, res.body).toBe(201);
+    const run = runSchema.parse(res.json());
+    expect(starter.startContentPipeline).toHaveBeenLastCalledWith({
+      workflowId: `run-${run.id}`,
+      input: {
+        ...params,
+        orgId,
+        resumeFrom: {
+          step: "publish",
+          priorOutputs: { research: findings, write: draft },
+        },
+      },
+    });
+
+    const steps = await repos.activityLog.listStepsForRun({ orgId, runId: run.id });
+    expect(steps.map((s) => s.stepKind).sort()).toEqual(["research", "write"]);
+    expect(steps.every((s) => s.status === "completed")).toBe(true);
+  });
+
+  it("re-runs the gate when the prior gate was never approved", async () => {
+    const { jwt, orgId } = await signUpOwner(app);
+    const prior = await seedFailedRun(jwt, orgId, { researchCompleted: true });
+
+    const res = await resume(jwt, prior.id);
+    expect(res.statusCode, res.body).toBe(201);
+    expect(starter.startContentPipeline).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          resumeFrom: { step: "approval", priorOutputs: { research: findings } },
+        }),
+      }),
+    );
+  });
+
+  it("restarts fully (no resumeFrom, still linked) when nothing completed", async () => {
+    const { jwt, orgId } = await signUpOwner(app);
+    const prior = await seedFailedRun(jwt, orgId);
+
+    const res = await resume(jwt, prior.id);
+    expect(res.statusCode, res.body).toBe(201);
+    const run = runSchema.parse(res.json());
+    expect(run.resumedFromRunId).toBe(prior.id);
+
+    const calls = vi.mocked(starter.startContentPipeline).mock.calls;
+    const lastInput = calls[calls.length - 1]?.[0]?.input;
+    expect(lastInput).toEqual({ ...params, orgId });
+    expect(lastInput && "resumeFrom" in lastInput).toBe(false);
+
+    const steps = await repos.activityLog.listStepsForRun({ orgId, runId: run.id });
+    expect(steps).toHaveLength(0);
+  });
+
+  it("409s a run that is not failed", async () => {
+    const { jwt } = await signUpOwner(app);
+    const pending = await startRun(jwt);
+    vi.mocked(starter.startContentPipeline).mockClear();
+
+    const res = await resume(jwt, pending.id);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(
+      "run_not_resumable",
+    );
+    expect(starter.startContentPipeline).not.toHaveBeenCalled();
+  });
+
+  it("404s a cross-org id, an unknown id, and a non-uuid id alike", async () => {
+    const a = await signUpOwner(app);
+    const b = await signUpOwner(app);
+    const prior = await seedFailedRun(a.jwt, a.orgId, { researchCompleted: true });
+
+    for (const id of [
+      prior.id, // cross-org (as org B)
+      "0c8e7a1e-9999-4999-8999-999999999999", // unknown
+      "not-a-uuid", // non-uuid
+    ]) {
+      const res = await resume(b.jwt, id);
+      expect(res.statusCode, id).toBe(404);
+    }
+  });
+
+  it("401s an unauthenticated request", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/runs/0c8e7a1e-9999-4999-8999-999999999999/resume",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("marks the new run failed and 502s when the workflow start fails", async () => {
+    const { jwt, orgId } = await signUpOwner(app);
+    const prior = await seedFailedRun(jwt, orgId, {
+      researchCompleted: true,
+      approved: true,
+    });
+    vi.mocked(starter.startContentPipeline).mockRejectedValue(
+      new Error("temporal unreachable"),
+    );
+
+    const res = await resume(jwt, prior.id);
+    expect(res.statusCode).toBe(502);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(
+      "run_start_failed",
+    );
+    expect(res.body).not.toContain("temporal unreachable");
+
+    const page = await repos.runs.listRuns({ orgId, limit: 10 });
+    const newest = page.items[0];
+    expect(newest?.resumedFromRunId).toBe(prior.id);
+    expect(newest?.status).toBe("failed");
+  });
+});

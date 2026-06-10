@@ -78,6 +78,7 @@ const RUN: Run = {
   workflowName: "contentPipeline",
   temporalWorkflowId: "wf-1",
   temporalRunId: "tr-1",
+  resumedFromRunId: null,
   status: "running",
   input: {
     topic: "t",

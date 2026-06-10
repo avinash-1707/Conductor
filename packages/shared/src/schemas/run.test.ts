@@ -21,6 +21,7 @@ const validRun = {
   },
   output: null,
   error: null,
+  resumedFromRunId: null,
   startedAt: null,
   completedAt: null,
   createdAt: "2026-06-10T12:00:00.000Z",
@@ -41,6 +42,16 @@ const validStep = {
 describe("runSchema", () => {
   it("accepts a pending run resource", () => {
     expect(runSchema.parse(validRun)).toEqual(validRun);
+  });
+
+  it("accepts a resumed run linking its prior run, and rejects a non-uuid link", () => {
+    const link = "2c8e7a1e-1111-4222-8333-444455556666";
+    expect(
+      runSchema.safeParse({ ...validRun, resumedFromRunId: link }).success,
+    ).toBe(true);
+    expect(
+      runSchema.safeParse({ ...validRun, resumedFromRunId: "run-1" }).success,
+    ).toBe(false);
   });
 
   it("accepts a completed run with output and timestamps", () => {

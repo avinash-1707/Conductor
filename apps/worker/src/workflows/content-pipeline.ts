@@ -15,6 +15,7 @@ import {
   contentPipelineInputSchema,
   approvalSignalPayloadSchema,
   type ApprovalSignalPayload,
+  type BlogDraft,
   type ContentPipelineInput,
   type ContentPipelineResult,
   type RunState,
@@ -109,10 +110,14 @@ export async function contentPipeline(
       "InvalidWorkflowInput",
     );
   }
-  const { orgId, topic, keywords, tone, wordCount, approverId } = parsedInput.data;
+  const { orgId, topic, keywords, tone, wordCount, approverId, resumeFrom } =
+    parsedInput.data;
 
   let decision: ApprovalSignalPayload | undefined;
-  let state: RunState = { status: "running", currentStep: "research" };
+  let state: RunState = {
+    status: "running",
+    currentStep: resumeFrom ? resumeFrom.step : "research",
+  };
 
   setHandler(approvalDecisionSignal, (payload) => {
     // First valid decision wins; later or malformed signals are ignored.
@@ -134,37 +139,52 @@ export async function contentPipeline(
   });
 
   try {
-    const findings = await research({ orgId, topic, keywords, tone });
+    // Resume-from-step (Unit 22): every resume variant carries the prior run's
+    // validated research findings — research never re-executes on a resume.
+    const findings = resumeFrom
+      ? resumeFrom.priorOutputs.research
+      : await research({ orgId, topic, keywords, tone });
 
-    state = { status: "suspended", currentStep: "approval" };
-    // Creates the org-scoped approval record (with the research context the
-    // reviewer renders) and suspends the run projection. The wait itself is
-    // the signal + condition below — never an activity (invariant 3).
-    await createApprovalRequest({
-      orgId,
-      approverId,
-      context: { research: findings },
-    });
-    await condition(() => decision !== undefined, APPROVAL_TIMEOUT);
+    // The gate runs for fresh starts and for resumes whose prior run never
+    // passed it (`step: "approval"`). A resume at write/publish carries an
+    // already-granted approval — re-asking would redo completed human work.
+    if (!resumeFrom || resumeFrom.step === "approval") {
+      state = { status: "suspended", currentStep: "approval" };
+      // Creates the org-scoped approval record (with the research context the
+      // reviewer renders) and suspends the run projection. The wait itself is
+      // the signal + condition below — never an activity (invariant 3).
+      await createApprovalRequest({
+        orgId,
+        approverId,
+        context: { research: findings },
+      });
+      await condition(() => decision !== undefined, APPROVAL_TIMEOUT);
 
-    if (decision === undefined) {
-      state = { status: "expired", currentStep: null };
-      await recordTerminal({ orgId, status: "expired" });
-      return { status: "expired" };
+      if (decision === undefined) {
+        state = { status: "expired", currentStep: null };
+        await recordTerminal({ orgId, status: "expired" });
+        return { status: "expired" };
+      }
+      const verdict = decision;
+      if (verdict.decision === "rejected") {
+        state = { status: "rejected", currentStep: null };
+        await recordTerminal({ orgId, status: "rejected" });
+        return {
+          status: "rejected",
+          reviewerId: verdict.reviewerId,
+          decidedAt: verdict.decidedAt,
+        };
+      }
     }
-    const verdict = decision;
-    if (verdict.decision === "rejected") {
-      state = { status: "rejected", currentStep: null };
-      await recordTerminal({ orgId, status: "rejected" });
-      return {
-        status: "rejected",
-        reviewerId: verdict.reviewerId,
-        decidedAt: verdict.decidedAt,
-      };
-    }
 
-    state = { status: "running", currentStep: "write" };
-    const draft = await writeDraft({ orgId, topic, keywords, tone, wordCount, findings });
+    let draft: BlogDraft;
+    if (resumeFrom?.step === "publish") {
+      // The prior run already wrote the draft — only delivery remains.
+      draft = resumeFrom.priorOutputs.write;
+    } else {
+      state = { status: "running", currentStep: "write" };
+      draft = await writeDraft({ orgId, topic, keywords, tone, wordCount, findings });
+    }
 
     state = { status: "running", currentStep: "publish" };
     // Run-scoped idempotency key so a publish retry delivers exactly once.

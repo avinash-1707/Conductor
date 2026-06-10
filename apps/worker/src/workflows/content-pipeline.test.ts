@@ -49,6 +49,7 @@ const approvedPayload: ApprovalSignalPayload = {
 interface MockTracker {
   researchAttempts: number;
   writeCalls: number;
+  writeInputs: unknown[];
   publishCalls: number;
   runStarted: number;
   approvalRequests: CreateApprovalRequestInput[];
@@ -59,6 +60,7 @@ function makeMocks(opts: { researchFailuresBeforeSuccess?: number } = {}) {
   const tracker: MockTracker = {
     researchAttempts: 0,
     writeCalls: 0,
+    writeInputs: [],
     publishCalls: 0,
     runStarted: 0,
     approvalRequests: [],
@@ -77,8 +79,9 @@ function makeMocks(opts: { researchFailuresBeforeSuccess?: number } = {}) {
       tracker.approvalRequests.push(approvalInput);
       return { approvalId: "2c8e7a1e-1111-4222-8333-444455556666" };
     },
-    writeDraft: async (): Promise<BlogDraft> => {
+    writeDraft: async (writeInput: unknown): Promise<BlogDraft> => {
       tracker.writeCalls += 1;
+      tracker.writeInputs.push(writeInput);
       return draft;
     },
     publish: async () => {
@@ -254,5 +257,94 @@ describe("contentPipeline", () => {
     expect(tracker.publishCalls).toBe(0);
     expect(tracker.terminal).toHaveLength(1);
     expect(tracker.terminal[0]).toMatchObject({ status: "expired" });
+  });
+
+  // Resume-from-step (Unit 22): call counts prove completed steps never
+  // re-execute (the build plan's verification line — no re-spent tokens).
+
+  it("resumes at write: skips research and the gate, writes with the carried findings", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-content-resume-write";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(contentPipeline, {
+        taskQueue,
+        workflowId: "content-resume-write",
+        args: [
+          {
+            ...input,
+            resumeFrom: { step: "write", priorOutputs: { research: findings } },
+          },
+        ],
+      });
+      // No signal sent — a resumed-past-the-gate run must complete on its own.
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+    });
+    expect(tracker.researchAttempts).toBe(0);
+    expect(tracker.approvalRequests).toHaveLength(0);
+    expect(tracker.writeCalls).toBe(1);
+    expect(tracker.publishCalls).toBe(1);
+    expect(tracker.writeInputs[0]).toMatchObject({ findings });
+    expect(tracker.terminal[0]).toMatchObject({ status: "completed" });
+  });
+
+  it("resumes at publish: only publish executes, delivering the carried draft", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-content-resume-publish";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(contentPipeline, {
+        taskQueue,
+        workflowId: "content-resume-publish",
+        args: [
+          {
+            ...input,
+            resumeFrom: {
+              step: "publish",
+              priorOutputs: { research: findings, write: draft },
+            },
+          },
+        ],
+      });
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+      if (result.status === "completed") {
+        expect(result.output.draft).toEqual(draft);
+      }
+    });
+    expect(tracker.researchAttempts).toBe(0);
+    expect(tracker.approvalRequests).toHaveLength(0);
+    expect(tracker.writeCalls).toBe(0);
+    expect(tracker.publishCalls).toBe(1);
+  });
+
+  it("resumes at approval: skips research but re-runs the gate before writing", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-content-resume-approval";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(contentPipeline, {
+        taskQueue,
+        workflowId: "content-resume-approval",
+        args: [
+          {
+            ...input,
+            resumeFrom: { step: "approval", priorOutputs: { research: findings } },
+          },
+        ],
+      });
+      await handle.signal(approvalDecisionSignal, approvedPayload);
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+    });
+    expect(tracker.researchAttempts).toBe(0);
+    // A fresh gate is created for the new run, carrying the prior findings.
+    expect(tracker.approvalRequests).toHaveLength(1);
+    expect(tracker.approvalRequests[0]).toMatchObject({
+      context: { research: findings },
+    });
+    expect(tracker.writeCalls).toBe(1);
+    expect(tracker.publishCalls).toBe(1);
   });
 });

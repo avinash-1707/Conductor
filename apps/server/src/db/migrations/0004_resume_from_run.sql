@@ -1,0 +1,2 @@
+ALTER TABLE "workflow_runs" ADD COLUMN "resumed_from_run_id" uuid;--> statement-breakpoint
+ALTER TABLE "workflow_runs" ADD CONSTRAINT "workflow_runs_resumed_from_run_id_workflow_runs_id_fk" FOREIGN KEY ("resumed_from_run_id") REFERENCES "public"."workflow_runs"("id") ON DELETE set null ON UPDATE no action;

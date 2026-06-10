@@ -96,6 +96,9 @@ export const api = {
         body: blogPostPipelineInputSchema.parse(input),
         schema: runSchema,
       }),
+    /** Resume a failed run from its last successful step — returns the new linked run. */
+    resume: (id: string): Promise<RunResource> =>
+      apiFetch(`/runs/${id}/resume`, { method: "POST", schema: runSchema }),
   },
   approvals: {
     list: (params?: { cursor?: string; limit?: number }): Promise<ApprovalListResponse> => {

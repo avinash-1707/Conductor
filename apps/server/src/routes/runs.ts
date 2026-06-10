@@ -9,6 +9,7 @@ import {
 import type { Run, Step } from "@conductor/db";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { decodeKeysetCursor, encodeKeysetCursor } from "../lib/keyset-cursor";
+import { buildResumePlan } from "../lib/resume-plan";
 import { repos } from "../repos/index";
 import type { RunGateway } from "../temporal";
 
@@ -36,6 +37,7 @@ function toRunResource(run: Run): RunResource {
     input: run.input,
     output: run.output,
     error: run.error,
+    resumedFromRunId: run.resumedFromRunId,
     startedAt: run.startedAt?.toISOString() ?? null,
     completedAt: run.completedAt?.toISOString() ?? null,
     createdAt: run.createdAt.toISOString(),
@@ -108,6 +110,105 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
           });
           throw new AppError(
             "The run could not be started. Try again.",
+            "run_start_failed",
+            502,
+          );
+        }
+      },
+    );
+
+    app.post(
+      "/runs/:id/resume",
+      { preHandler: (req, reply) => app.requireSession(req, reply) },
+      async (req, reply) => {
+        const orgId = activeOrgId(req);
+        const params = idParamSchema.safeParse(req.params);
+        if (!params.success) throw new NotFoundError("Run not found");
+
+        const prior = await repos.runs.findRunById({ orgId, id: params.data.id });
+        if (!prior) throw new NotFoundError("Run not found");
+        // Only failed runs are resumable: rejected/expired are human decisions
+        // a resume must not override (spec 22 semantics).
+        if (prior.status !== "failed") {
+          throw new AppError(
+            "Only failed runs can be resumed.",
+            "run_not_resumable",
+            409,
+          );
+        }
+        // Stored JSONB launch input is parsed on read; a row that no longer
+        // matches the contract cannot safely seed a new run.
+        const launch = blogPostPipelineInputSchema.safeParse(prior.input);
+        if (!launch.success) {
+          throw new AppError(
+            "This run cannot be resumed.",
+            "run_not_resumable",
+            409,
+          );
+        }
+
+        const steps = await repos.activityLog.listStepsForRun({
+          orgId,
+          runId: prior.id,
+        });
+        const approval = await repos.approvals.findApprovalByRunId({
+          orgId,
+          runId: prior.id,
+        });
+        const plan = buildResumePlan(steps, approval?.status === "approved");
+
+        // New linked run, same pre-create pattern as POST /runs; completed
+        // prior steps are copied so the new run's rail and audit trail show
+        // the carried work (original attempts/timestamps — the worker only
+        // writes rows for steps it actually executes).
+        const id = randomUUID();
+        const temporalWorkflowId = `run-${id}`;
+        const run = await repos.runs.createRun({
+          id,
+          orgId,
+          workflowName: prior.workflowName,
+          temporalWorkflowId,
+          status: "pending",
+          input: launch.data,
+          resumedFromRunId: prior.id,
+        });
+        for (const step of plan.carriedSteps) {
+          await repos.activityLog.upsertStep({
+            orgId,
+            runId: run.id,
+            stepKind: step.stepKind,
+            status: "completed",
+            attempt: step.attempt,
+            input: step.input,
+            output: step.output,
+            startedAt: step.startedAt,
+            completedAt: step.completedAt,
+          });
+        }
+
+        try {
+          const { temporalRunId } = await temporal.startContentPipeline({
+            workflowId: temporalWorkflowId,
+            input: {
+              ...launch.data,
+              orgId,
+              ...(plan.resumeFrom ? { resumeFrom: plan.resumeFrom } : {}),
+            },
+          });
+          return reply.code(201).send(toRunResource({ ...run, temporalRunId }));
+        } catch (err) {
+          req.log.error(
+            { err, runId: id, resumedFromRunId: prior.id, orgId },
+            "resume workflow start failed",
+          );
+          await repos.runs.markRunTerminal({
+            orgId,
+            temporalWorkflowId,
+            status: "failed",
+            error: "The run could not be started",
+          });
+          throw new AppError(
+            "The run could not be resumed. Try again.",
             "run_start_failed",
             502,
           );
