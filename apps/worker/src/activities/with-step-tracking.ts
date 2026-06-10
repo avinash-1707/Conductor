@@ -3,8 +3,19 @@ import type { z } from "zod";
 import type { StepKind } from "@conductor/shared";
 import { repos } from "../db";
 import { logger } from "../logger";
-import { publishRunEvent } from "../realtime/publisher";
+import { publishRunEvent, publishTokenEvent } from "../realtime/publisher";
 import { workflowExecutionContext } from "./activity-context";
+
+/**
+ * Side-channel a tracked step is handed so it can stream LLM tokens (Unit 20).
+ * `runId` is the projection run id (the Socket.IO room / Redis channel key);
+ * `emitToken` publishes one delta best-effort. The step's `done` marker is
+ * emitted by the wrapper itself on completion or failure.
+ */
+export interface StepContext {
+  runId: string;
+  emitToken: (delta: string) => void;
+}
 
 /**
  * Wraps a pipeline-step activity with `activity_log` / `workflow_runs`
@@ -30,7 +41,7 @@ import { workflowExecutionContext } from "./activity-context";
 export function withStepTracking<I extends { orgId: string }, O>(
   stepKind: StepKind,
   inputSchema: z.ZodType<I>,
-  fn: (input: I) => Promise<O>,
+  fn: (input: I, ctx: StepContext) => Promise<O>,
 ): (input: I) => Promise<O> {
   return async (rawInput: I): Promise<O> => {
     const parsed = inputSchema.safeParse(rawInput);
@@ -86,8 +97,18 @@ export function withStepTracking<I extends { orgId: string }, O>(
       at: at(),
     });
 
+    // Side channel for LLM token streaming (Unit 20). Tokens never enter the
+    // activity's return value — only the final structured result does (the
+    // Temporal payload), preserving invariant 8.
+    const ctx: StepContext = {
+      runId: run.id,
+      emitToken: (delta: string) => {
+        void publishTokenEvent({ type: "token", runId: run.id, step: stepKind, delta });
+      },
+    };
+
     try {
-      const output = await fn(input);
+      const output = await fn(input, ctx);
       try {
         await repos.activityLog.completeStep({
           orgId: input.orgId,
@@ -106,6 +127,8 @@ export function withStepTracking<I extends { orgId: string }, O>(
         attempt,
         at: at(),
       });
+      // Close any live token stream for this step (no-op if it never streamed).
+      void publishTokenEvent({ type: "done", runId: run.id, step: stepKind });
       return output;
     } catch (err) {
       const terminal = err instanceof ApplicationFailure && err.nonRetryable === true;
@@ -128,6 +151,7 @@ export function withStepTracking<I extends { orgId: string }, O>(
         attempt,
         at: at(),
       });
+      void publishTokenEvent({ type: "done", runId: run.id, step: stepKind });
       throw err;
     }
   };

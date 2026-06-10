@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateObject } from "ai";
+import { generateObject, streamObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import {
@@ -57,11 +57,15 @@ const LLM_CALL_TIMEOUT_MS = 60_000;
 /**
  * OpenRouter-backed {@link ResearchLLM}. Built per-activity-invocation from the
  * key + model the activity resolves (env in Phase 1; the org's decrypted key in
- * Phase 2). `maxRetries: 1` keeps coarse retry with Temporal.
+ * Phase 2). `maxRetries: 1` keeps coarse retry with Temporal. When `onDelta` is
+ * provided (Unit 20), the synthesized summary is streamed token-by-token via
+ * `streamObject` — only the final validated object is returned (it becomes the
+ * activity result, i.e. the Temporal payload); the deltas ride Redis only.
  */
 export function createOpenRouterResearchLLM(config: {
   apiKey: string;
   model: string;
+  onDelta?: (delta: string) => void;
 }): ResearchLLM {
   const openrouter = createOpenRouter({ apiKey: config.apiKey });
   const model = openrouter.chat(config.model);
@@ -91,22 +95,33 @@ export function createOpenRouterResearchLLM(config: {
       const sourcesBlock = input.sources
         .map((s, i) => `${i + 1}. ${s.title} — ${s.takeaway} (${s.url})`)
         .join("\n");
-      const { object } = await generateObject({
-        model,
-        schema: synthSchema,
-        maxRetries: 1,
-        abortSignal: AbortSignal.timeout(LLM_CALL_TIMEOUT_MS),
-        system:
-          "You are a research analyst. Synthesize gathered sources into a tight summary " +
-          "and a list of key points a writer can build a draft from.",
-        prompt:
-          `Topic: ${input.topic}\n` +
-          `Target keywords: ${input.keywords.join(", ")}\n` +
-          `Intended tone: ${input.tone}\n\n` +
-          `Sources:\n${sourcesBlock}\n\n` +
-          `Notes:\n${input.notes}\n\n` +
-          "Write a 2-4 sentence summary and 3-7 key points grounded in the sources above.",
-      });
+      const system =
+        "You are a research analyst. Synthesize gathered sources into a tight summary " +
+        "and a list of key points a writer can build a draft from.";
+      const prompt =
+        `Topic: ${input.topic}\n` +
+        `Target keywords: ${input.keywords.join(", ")}\n` +
+        `Intended tone: ${input.tone}\n\n` +
+        `Sources:\n${sourcesBlock}\n\n` +
+        `Notes:\n${input.notes}\n\n` +
+        "Write a 2-4 sentence summary and 3-7 key points grounded in the sources above.";
+      const abortSignal = AbortSignal.timeout(LLM_CALL_TIMEOUT_MS);
+
+      if (config.onDelta) {
+        const result = streamObject({ model, schema: synthSchema, maxRetries: 1, abortSignal, system, prompt });
+        let emitted = 0;
+        for await (const partial of result.partialObjectStream) {
+          const text = partial.summary ?? "";
+          if (text.length > emitted) {
+            config.onDelta(text.slice(emitted));
+            emitted = text.length;
+          }
+        }
+        // The validated object is the activity's return value (Temporal payload).
+        return await result.object;
+      }
+
+      const { object } = await generateObject({ model, schema: synthSchema, maxRetries: 1, abortSignal, system, prompt });
       return object;
     },
   };

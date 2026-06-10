@@ -8,6 +8,7 @@ import {
   redisChannels,
   type BlogPostPipelineInput,
   type RunEvent,
+  type TokenStreamEvent,
 } from "@conductor/shared";
 import { buildApp } from "../app";
 import { auth } from "../auth/auth";
@@ -148,6 +149,33 @@ describe("event isolation", () => {
     // Give psubscribe a beat, then publish on run A's channel only.
     await new Promise((r) => setTimeout(r, 150));
     await pub.publish(redisChannels.status(runA.id), JSON.stringify(event));
+
+    expect(await received).toEqual(event);
+    expect(bReceived).toBe(false);
+  }, 15_000);
+});
+
+describe("token stream relay (Unit 20)", () => {
+  it("relays a token event on the stream channel to the run's room only", async () => {
+    const a = connect(ownerA.jwt);
+    const b = connect(ownerB.jwt);
+    await Promise.all([once(a, "connect"), once(b, "connect")]);
+    await Promise.all([subscribe(a, runA.id), subscribe(b, runB.id)]);
+
+    let bReceived = false;
+    b.on("run.stream", () => {
+      bReceived = true;
+    });
+
+    const event: TokenStreamEvent = {
+      type: "token",
+      runId: runA.id,
+      step: "research",
+      delta: "Hello",
+    };
+    const received = once<TokenStreamEvent>(a, "run.stream");
+    await new Promise((r) => setTimeout(r, 150));
+    await pub.publish(redisChannels.stream(runA.id), JSON.stringify(event));
 
     expect(await received).toEqual(event);
     expect(bReceived).toBe(false);

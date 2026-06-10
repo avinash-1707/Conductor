@@ -28,7 +28,28 @@ function Note({ children }: { children: React.ReactNode }) {
   return <p className="font-mono text-xs text-faint">{children}</p>;
 }
 
-export function PayloadInspector({ node }: { node: RailNode }) {
+/** Live token stream for the active step — appends without animation. */
+function StreamingOutput({ text, done }: { text: string; done: boolean }) {
+  return (
+    <pre
+      className={`overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-ink ${
+        done ? "" : "caret"
+      }`}
+      aria-live="polite"
+    >
+      {text}
+    </pre>
+  );
+}
+
+export function PayloadInspector({
+  node,
+  stream,
+}: {
+  node: RailNode;
+  stream?: { text: string; done: boolean };
+}) {
+  const liveStream = stream && stream.text.length > 0 ? stream : null;
   return (
     <div className="sticky top-20 flex flex-col gap-4 rounded-lg border border-line-soft bg-inset p-4">
       <div className="flex items-center justify-between gap-2 border-b border-line-soft pb-3">
@@ -53,6 +74,8 @@ export function PayloadInspector({ node }: { node: RailNode }) {
           <Section title="Output">
             {node.step?.output != null ? (
               <JsonView value={node.step.output} />
+            ) : liveStream ? (
+              <StreamingOutput text={liveStream.text} done={liveStream.done} />
             ) : node.status === "running" || node.status === "retrying" ? (
               <Note>Running… output appears when the step finishes.</Note>
             ) : node.status === "failed" ? (

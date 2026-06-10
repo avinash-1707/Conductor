@@ -21,7 +21,15 @@ vi.mock("../db", () => ({
   },
 }));
 
+// The realtime publisher is best-effort and network-bound; mock it so the
+// tests assert the token-stream side channel (Unit 20) without Redis.
+vi.mock("../realtime/publisher", () => ({
+  publishRunEvent: vi.fn(),
+  publishTokenEvent: vi.fn(),
+}));
+
 import { repos } from "../db";
+import { publishTokenEvent } from "../realtime/publisher";
 import { withStepTracking } from "./with-step-tracking";
 
 const RUN: Run = {
@@ -165,5 +173,47 @@ describe("withStepTracking", () => {
     });
 
     await expect(activityEnv(1).run(tracked, input)).rejects.toThrow("the real failure");
+  });
+
+  it("streams tokens through ctx.emitToken and closes the stream with done", async () => {
+    const tracked = withStepTracking("research", inputSchema, async (i, ctx) => {
+      ctx.emitToken("Hel");
+      ctx.emitToken("lo");
+      return i.value;
+    });
+
+    await activityEnv(1).run(tracked, input);
+
+    expect(publishTokenEvent).toHaveBeenCalledWith({
+      type: "token",
+      runId: RUN.id,
+      step: "research",
+      delta: "Hel",
+    });
+    expect(publishTokenEvent).toHaveBeenCalledWith({
+      type: "token",
+      runId: RUN.id,
+      step: "research",
+      delta: "lo",
+    });
+    // The done marker closes the live tail after the step finishes.
+    expect(publishTokenEvent).toHaveBeenCalledWith({
+      type: "done",
+      runId: RUN.id,
+      step: "research",
+    });
+  });
+
+  it("still emits a stream `done` when the step fails", async () => {
+    const tracked = withStepTracking("write", inputSchema, async () => {
+      throw new Error("boom");
+    });
+
+    await expect(activityEnv(1).run(tracked, input)).rejects.toThrow("boom");
+    expect(publishTokenEvent).toHaveBeenCalledWith({
+      type: "done",
+      runId: RUN.id,
+      step: "write",
+    });
   });
 });

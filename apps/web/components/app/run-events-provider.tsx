@@ -10,17 +10,24 @@ import {
   type ReactNode,
 } from "react";
 import { io, type Socket } from "socket.io-client";
-import { runEventSchema, type RunEvent } from "@conductor/shared";
+import {
+  runEventSchema,
+  tokenStreamEventSchema,
+  type RunEvent,
+  type TokenStreamEvent,
+} from "@conductor/shared";
 import { SERVER_URL } from "@/lib/config";
 import { getApiJwt } from "@/lib/jwt";
 
 export type ConnectionStatus = "connecting" | "live" | "reconnecting" | "offline";
 
 type Handler = (event: RunEvent) => void;
+type StreamHandler = (event: TokenStreamEvent) => void;
 
 interface RunEventsContext {
   status: ConnectionStatus;
   subscribe: (runId: string, handler: Handler, onReconnect?: () => void) => () => void;
+  subscribeStream: (runId: string, handler: StreamHandler) => () => void;
 }
 
 const Ctx = createContext<RunEventsContext | null>(null);
@@ -32,13 +39,36 @@ const Ctx = createContext<RunEventsContext | null>(null);
  * re-join the rooms for all active run ids, and on a *re*connect we fire each
  * subscriber's onReconnect so it can refetch the projections (the read source
  * of truth) and reconcile any tail dropped while offline.
+ *
+ * Two event kinds share each per-run room: status events (`run.event`) and LLM
+ * token deltas (`run.stream`, Unit 20). Room membership is reference-counted
+ * across both subscription kinds, so a run id stays joined while either a
+ * status or a stream subscriber is live.
  */
 export function RunEventsProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const handlers = useRef(new Map<string, Set<Handler>>());
+  const streamHandlers = useRef(new Map<string, Set<StreamHandler>>());
   const onReconnects = useRef(new Map<string, Set<() => void>>());
+  const roomRefs = useRef(new Map<string, number>());
   const socketRef = useRef<Socket | null>(null);
   const everConnected = useRef(false);
+
+  // Join a run's room on the 0→1 transition; leave on →0.
+  function joinRoom(runId: string) {
+    const next = (roomRefs.current.get(runId) ?? 0) + 1;
+    roomRefs.current.set(runId, next);
+    if (next === 1) socketRef.current?.emit("subscribe", runId);
+  }
+  function releaseRoom(runId: string) {
+    const next = (roomRefs.current.get(runId) ?? 1) - 1;
+    if (next <= 0) {
+      roomRefs.current.delete(runId);
+      socketRef.current?.emit("unsubscribe", runId);
+    } else {
+      roomRefs.current.set(runId, next);
+    }
+  }
 
   useEffect(() => {
     const socket = io(SERVER_URL, {
@@ -54,7 +84,7 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
     socket.on("connect", () => {
       setStatus("live");
       // Rooms are per-socket and lost on reconnect; re-join every active run.
-      for (const runId of handlers.current.keys()) socket.emit("subscribe", runId);
+      for (const runId of roomRefs.current.keys()) socket.emit("subscribe", runId);
       if (everConnected.current) {
         for (const set of onReconnects.current.values())
           for (const fn of set) fn();
@@ -69,6 +99,12 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
       const parsed = runEventSchema.safeParse(raw);
       if (!parsed.success) return;
       const set = handlers.current.get(parsed.data.runId);
+      if (set) for (const fn of set) fn(parsed.data);
+    });
+    socket.on("run.stream", (raw: unknown) => {
+      const parsed = tokenStreamEventSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const set = streamHandlers.current.get(parsed.data.runId);
       if (set) for (const fn of set) fn(parsed.data);
     });
 
@@ -87,9 +123,9 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
         if (!hset) {
           hset = new Set();
           handlers.current.set(runId, hset);
-          socketRef.current?.emit("subscribe", runId);
         }
         hset.add(handler);
+        joinRoom(runId);
 
         let rset: Set<() => void> | undefined;
         if (onReconnect) {
@@ -105,8 +141,24 @@ export function RunEventsProvider({ children }: { children: ReactNode }) {
           if (hs && hs.size === 0) {
             handlers.current.delete(runId);
             onReconnects.current.delete(runId);
-            socketRef.current?.emit("unsubscribe", runId);
           }
+          releaseRoom(runId);
+        };
+      },
+      subscribeStream(runId, handler) {
+        let sset = streamHandlers.current.get(runId);
+        if (!sset) {
+          sset = new Set();
+          streamHandlers.current.set(runId, sset);
+        }
+        sset.add(handler);
+        joinRoom(runId);
+
+        return () => {
+          const ss = streamHandlers.current.get(runId);
+          ss?.delete(handler);
+          if (ss && ss.size === 0) streamHandlers.current.delete(runId);
+          releaseRoom(runId);
         };
       },
     }),

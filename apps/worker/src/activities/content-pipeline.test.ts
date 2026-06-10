@@ -145,6 +145,7 @@ describe("research activity (org key)", () => {
     expect(createOpenRouterResearchLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "anthropic/claude-sonnet-4.5",
+      onDelta: expect.any(Function),
     });
     expect(runResearch).toHaveBeenCalledWith(
       { topic: "Topic", keywords: ["k"], tone: "technical" },
@@ -224,6 +225,7 @@ describe("writeDraft activity", () => {
     expect(createOpenRouterWritingLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "anthropic/claude-opus-4.8",
+      onDelta: expect.any(Function),
     });
   });
 });

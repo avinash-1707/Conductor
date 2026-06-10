@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { RunDetailResponse } from "@conductor/shared";
+import type { RunDetailResponse, TokenStreamEvent } from "@conductor/shared";
 import { useElapsed } from "@/lib/use-elapsed";
+import { useRunStream } from "@/lib/use-run-events";
 import { relativeTime, shortRunId, workflowLabel } from "@/lib/format";
 import { StatusBadge } from "./status-badge";
 import {
@@ -39,6 +40,20 @@ function Meta({ label, value, title }: { label: string; value: string; title?: s
 export function RunDetail({ detail }: { detail: RunDetailResponse }) {
   const { run, steps } = detail;
   const nodes = useMemo(() => buildRailNodes(run, steps), [run, steps]);
+
+  // Live LLM token streams, accumulated per step kind (Unit 20). Shown in the
+  // inspector for a running step until its final output arrives on refetch.
+  const [streams, setStreams] = useState<Record<string, { text: string; done: boolean }>>({});
+  const onToken = useCallback((event: TokenStreamEvent) => {
+    setStreams((prev) => {
+      const cur = prev[event.step] ?? { text: "", done: false };
+      if (event.type === "token") {
+        return { ...prev, [event.step]: { text: cur.text + event.delta, done: false } };
+      }
+      return { ...prev, [event.step]: { ...cur, done: true } };
+    });
+  }, []);
+  useRunStream(run.id, onToken);
 
   const [selectedKey, setSelectedKey] = useState<RailNodeKey>(() =>
     defaultSelected(detail, nodes),
@@ -104,7 +119,12 @@ export function RunDetail({ detail }: { detail: RunDetailResponse }) {
             setSelectedKey(key);
           }}
         />
-        {selected && <PayloadInspector node={selected} />}
+        {selected && (
+          <PayloadInspector
+            node={selected}
+            stream={selected.key !== "approval" ? streams[selected.key] : undefined}
+          />
+        )}
       </div>
     </div>
   );

@@ -36,7 +36,7 @@ export type ResearchInput = z.infer<typeof researchInputSchema>;
 export const research = withStepTracking(
   "research",
   researchInputSchema,
-  async (input: ResearchInput): Promise<ResearchFindings> => {
+  async (input: ResearchInput, ctx): Promise<ResearchFindings> => {
     const { orgId, topic, keywords, tone } = input;
     const apiKey = await resolveOrgApiKey(orgId);
 
@@ -44,7 +44,12 @@ export const research = withStepTracking(
       { activity: "research", orgId, topic, model: env.RESEARCH_MODEL },
       "research agent running",
     );
-    const llm = createOpenRouterResearchLLM({ apiKey, model: env.RESEARCH_MODEL });
+    // Stream the synthesized summary token-by-token to the dashboard (Unit 20).
+    const llm = createOpenRouterResearchLLM({
+      apiKey,
+      model: env.RESEARCH_MODEL,
+      onDelta: ctx.emitToken,
+    });
     return runResearch({ topic, keywords, tone }, llm);
   },
 );
@@ -62,7 +67,7 @@ export type WriteDraftInput = z.infer<typeof writeDraftInputSchema>;
 export const writeDraft = withStepTracking(
   "write",
   writeDraftInputSchema,
-  async (input: WriteDraftInput): Promise<BlogDraft> => {
+  async (input: WriteDraftInput, ctx): Promise<BlogDraft> => {
     const { orgId, topic, keywords, findings, tone, wordCount } = input;
     const apiKey = await resolveOrgApiKey(orgId);
 
@@ -70,7 +75,12 @@ export const writeDraft = withStepTracking(
       { activity: "writeDraft", orgId, topic, model: env.WRITING_MODEL },
       "writing agent running",
     );
-    const llm = createOpenRouterWritingLLM({ apiKey, model: env.WRITING_MODEL });
+    // Stream the draft markdown token-by-token to the dashboard (Unit 20).
+    const llm = createOpenRouterWritingLLM({
+      apiKey,
+      model: env.WRITING_MODEL,
+      onDelta: ctx.emitToken,
+    });
     return runWriting({ topic, keywords, tone, wordCount, findings }, llm);
   },
 );

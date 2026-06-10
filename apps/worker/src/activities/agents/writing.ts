@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateObject } from "ai";
+import { generateObject, streamObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import {
@@ -52,10 +52,17 @@ function findingsBlock(findings: ResearchFindings): string {
   return `Summary: ${findings.summary}\n\nKey points:\n${points}\n\nSources:\n${sources}`;
 }
 
-/** OpenRouter-backed {@link WritingLLM} (built per activity invocation). */
+/**
+ * OpenRouter-backed {@link WritingLLM} (built per activity invocation). When
+ * `onDelta` is provided (Unit 20), the draft markdown is streamed
+ * token-by-token via `streamObject`; only the final validated object is
+ * returned (the activity result → Temporal payload), so token deltas never
+ * enter Temporal — they ride Redis only (architecture invariant 8).
+ */
 export function createOpenRouterWritingLLM(config: {
   apiKey: string;
   model: string;
+  onDelta?: (delta: string) => void;
 }): WritingLLM {
   const openrouter = createOpenRouter({ apiKey: config.apiKey });
   const model = openrouter.chat(config.model);
@@ -81,21 +88,30 @@ export function createOpenRouterWritingLLM(config: {
     },
 
     async draft(input) {
-      const { object } = await generateObject({
-        model,
-        schema: draftSchema,
-        maxRetries: 1,
-        abortSignal: signal(),
-        system:
-          "You are a senior content writer. Write a complete blog post in Markdown, " +
-          "in the requested tone, grounded in the research. Include a title.",
-        prompt:
-          `Topic: ${input.topic}\nKeywords: ${input.keywords.join(", ")}\n` +
-          `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
-          `Outline:\n${input.outline.map((s) => `- ${s}`).join("\n")}\n\n` +
-          `Research:\n${findingsBlock(input.findings)}\n\n` +
-          "Write the full draft now.",
-      });
+      const system =
+        "You are a senior content writer. Write a complete blog post in Markdown, " +
+        "in the requested tone, grounded in the research. Include a title.";
+      const prompt =
+        `Topic: ${input.topic}\nKeywords: ${input.keywords.join(", ")}\n` +
+        `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
+        `Outline:\n${input.outline.map((s) => `- ${s}`).join("\n")}\n\n` +
+        `Research:\n${findingsBlock(input.findings)}\n\n` +
+        "Write the full draft now.";
+
+      if (config.onDelta) {
+        const result = streamObject({ model, schema: draftSchema, maxRetries: 1, abortSignal: signal(), system, prompt });
+        let emitted = 0;
+        for await (const partial of result.partialObjectStream) {
+          const text = partial.markdown ?? "";
+          if (text.length > emitted) {
+            config.onDelta(text.slice(emitted));
+            emitted = text.length;
+          }
+        }
+        return await result.object;
+      }
+
+      const { object } = await generateObject({ model, schema: draftSchema, maxRetries: 1, abortSignal: signal(), system, prompt });
       return object;
     },
 
