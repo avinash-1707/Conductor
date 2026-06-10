@@ -1,26 +1,302 @@
 @import "tailwindcss";
 
+/* ----------------------------------------------------------------------------
+   Brand tokens. Dark is the default; `.light` on <html> swaps to warm paper.
+   Component classes only ever reference these through the @theme map below.
+---------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Dark: warm black with a mustard-yellow accent. */
+  --bg-base: #0b0b0c;
+  --bg-surface: #151517;
+  --bg-raised: #1d1d20;
+  --bg-inset: #070708;
+  --border-default: #2a2a2e;
+  --border-subtle: #1e1e21;
+  --text-primary: #f3f1ea;
+  --text-muted: #9c988e;
+  --text-faint: #6b6760;
+  /* `accent` is the readable text/icon tone; `accent-fill` is the vivid
+     button background (dark text rides on top for contrast). */
+  --accent-primary: #ecb83f;
+  --accent-hover: #f2c659;
+  --accent-fill: #e0a82e;
+  --accent-fill-hi: #f0be4a;
+  --accent-fg: #0b0b0c;
+
+  --status-pending: #6b6760;
+  --status-running: #38bdf8;
+  --status-suspended: #fbbf24;
+  --status-completed: #34d399;
+  --status-failed: #f87171;
+  --status-retrying: #fb923c;
+  --status-cancelled: #9c988e;
+
+  --grid-line: rgba(255, 255, 255, 0.022);
+  --glow-accent: rgba(224, 168, 46, 0.16);
+  --glow-running: rgba(56, 189, 248, 0.1);
+  --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+    0 18px 50px -22px rgba(0, 0, 0, 0.8);
+  --noise-opacity: 0.045;
+  color-scheme: dark;
+}
+
+:root.light {
+  /* Light: white with a lemon-yellow accent. */
+  --bg-base: #ffffff;
+  --bg-surface: #fbfbf8;
+  --bg-raised: #ffffff;
+  --bg-inset: #f4f3ee;
+  --border-default: #e6e3da;
+  --border-subtle: #efede5;
+  --text-primary: #1a1a17;
+  --text-muted: #5c5a52;
+  --text-faint: #8d8b82;
+  /* Lemon is unreadable as text on white, so `accent` is a deep gold for
+     text/icons while `accent-fill` stays bright lemon for button fills. */
+  --accent-primary: #7a6000;
+  --accent-hover: #5f4b00;
+  --accent-fill: #ecd400;
+  --accent-fill-hi: #f4e22e;
+  --accent-fg: #1a1a17;
+
+  --status-pending: #6b7280;
+  --status-running: #0284c7;
+  --status-suspended: #b45309;
+  --status-completed: #047857;
+  --status-failed: #dc2626;
+  --status-retrying: #c2410c;
+  --status-cancelled: #6b7280;
+
+  --grid-line: rgba(25, 25, 23, 0.045);
+  --glow-accent: rgba(236, 212, 0, 0.18);
+  --glow-running: rgba(2, 132, 199, 0.1);
+  --shadow-card: 0 1px 2px 0 rgba(25, 25, 23, 0.05),
+    0 20px 44px -24px rgba(25, 25, 23, 0.18);
+  --noise-opacity: 0.025;
+  color-scheme: light;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--bg-base);
+  --color-surface: var(--bg-surface);
+  --color-raised: var(--bg-raised);
+  --color-inset: var(--bg-inset);
+  --color-line: var(--border-default);
+  --color-line-soft: var(--border-subtle);
+  --color-ink: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent-primary);
+  --color-accent-hi: var(--accent-hover);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hi: var(--accent-fill-hi);
+  --color-accent-fg: var(--accent-fg);
+
+  --color-pending: var(--status-pending);
+  --color-running: var(--status-running);
+  --color-suspended: var(--status-suspended);
+  --color-completed: var(--status-completed);
+  --color-failed: var(--status-failed);
+  --color-retrying: var(--status-retrying);
+  --color-cancelled: var(--status-cancelled);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Sleek, themed scrollbar. Thin track-less rail with a rounded, inset thumb. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-default) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid var(--bg-base);
+    background-color: var(--border-default);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-faint);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  body {
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--accent-primary) 32%, transparent);
+    color: var(--text-primary);
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.012em;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ----------------------------------------------------------------------------
+   Atmosphere: layered glow + faint engineering grid + grain. Fixed, behind all.
+---------------------------------------------------------------------------- */
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      980px 560px at 82% -12%,
+      var(--glow-accent),
+      transparent 62%
+    ),
+    radial-gradient(
+      760px 620px at -8% 108%,
+      var(--glow-running),
+      transparent 60%
+    );
+}
+.atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 62px 62px;
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 28%,
+    black,
+    transparent 78%
+  );
+  mask-image: radial-gradient(circle at 50% 28%, black, transparent 78%);
+}
+.atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ----------------------------------------------------------------------------
+   Reveal-on-scroll. Transition-based so it stays interruptible.
+---------------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  filter: blur(7px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+}
+
+/* The running step node carries the brand's single meaningful pulse. */
+.node-pulse {
+  animation: node-pulse 2.1s ease-in-out infinite;
+}
+@keyframes node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--status-running) 50%, transparent);
+  }
+  55% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--status-running) 0%, transparent);
+  }
+}
+
+/* Navbar slides down on first load. */
+.nav-enter {
+  animation: nav-enter 0.7s cubic-bezier(0.32, 0.72, 0, 1) 0.05s both;
+}
+@keyframes nav-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-120%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.5ch;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: caret 1.05s steps(1) infinite;
+}
+@keyframes caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .caret::after {
+    opacity: 1;
+  }
 }
