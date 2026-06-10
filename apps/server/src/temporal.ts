@@ -1,5 +1,10 @@
 import { Client, type Connection } from "@temporalio/client";
-import { TASK_QUEUE, type ContentPipelineInput } from "@conductor/shared";
+import {
+  SIGNALS,
+  TASK_QUEUE,
+  type ApprovalSignalPayload,
+  type ContentPipelineInput,
+} from "@conductor/shared";
 
 /**
  * The server's narrow seam to Temporal (architecture Execution Model: the
@@ -8,17 +13,22 @@ import { TASK_QUEUE, type ContentPipelineInput } from "@conductor/shared";
  * and no Temporal server; `server.ts` wires the real client over the shared
  * gRPC connection from deps.ts.
  */
-export interface RunStarter {
+export interface RunGateway {
   startContentPipeline(args: {
     workflowId: string;
     input: ContentPipelineInput;
   }): Promise<{ temporalRunId: string }>;
+  /** Fires the approvalDecision signal at a suspended run (Unit 14). */
+  signalApprovalDecision(args: {
+    temporalWorkflowId: string;
+    payload: ApprovalSignalPayload;
+  }): Promise<void>;
 }
 
-export function createRunStarter(
+export function createRunGateway(
   getConnection: () => Promise<Connection>,
   namespace: string,
-): RunStarter {
+): RunGateway {
   let client: Client | undefined;
   async function getClient(): Promise<Client> {
     if (!client) {
@@ -39,6 +49,13 @@ export function createRunStarter(
         args: [input],
       });
       return { temporalRunId: handle.firstExecutionRunId };
+    },
+
+    async signalApprovalDecision({ temporalWorkflowId, payload }) {
+      const c = await getClient();
+      await c.workflow
+        .getHandle(temporalWorkflowId)
+        .signal(SIGNALS.APPROVAL_DECISION, payload);
     },
   };
 }

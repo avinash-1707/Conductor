@@ -40,7 +40,7 @@ const { research, writeDraft, publish } = proxyActivities<typeof activities>({
 
 // Short record-writes (approval request + run projections) — never a human
 // wait (invariant 3): tighter timeout, same backoff.
-const { requestApproval, recordRunStarted, recordRunTerminal } = proxyActivities<
+const { createApprovalRequest, recordRunStarted, recordRunTerminal } = proxyActivities<
   typeof activities
 >({
   startToCloseTimeout: "10 seconds",
@@ -137,7 +137,14 @@ export async function contentPipeline(
     const findings = await research({ orgId, topic, keywords, tone });
 
     state = { status: "suspended", currentStep: "approval" };
-    await requestApproval({ approverId, summary: findings.summary });
+    // Creates the org-scoped approval record (with the research context the
+    // reviewer renders) and suspends the run projection. The wait itself is
+    // the signal + condition below — never an activity (invariant 3).
+    await createApprovalRequest({
+      orgId,
+      approverId,
+      context: { research: findings },
+    });
     await condition(() => decision !== undefined, APPROVAL_TIMEOUT);
 
     if (decision === undefined) {

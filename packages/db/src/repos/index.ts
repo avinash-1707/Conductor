@@ -36,6 +36,7 @@ export {
   type ApprovalsRepo,
   type Approval,
   type NewApproval,
+  type ApprovalCursor,
 } from "./approvals";
 export {
   createDefinitionsRepo,

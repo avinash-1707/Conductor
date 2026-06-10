@@ -146,7 +146,11 @@ export const activityLog = pgTable(
   ],
 );
 
-/** Human approval gate record — context rendered in the Approval Queue. */
+/**
+ * Human approval gate record — context rendered in the Approval Queue. One
+ * gate per run in v1 (unique `run_id` — what makes createApprovalRequest
+ * idempotent across retries; resume-from-step creates a NEW run row, Unit 22).
+ */
 export const approvalRequests = pgTable(
   "approval_requests",
   {
@@ -163,6 +167,7 @@ export const approvalRequests = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    uniqueIndex("approval_requests_run_uidx").on(t.runId),
     index("approval_requests_org_status_idx").on(t.orgId, t.status),
     index("approval_requests_org_created_idx").on(t.orgId, t.createdAt),
   ],

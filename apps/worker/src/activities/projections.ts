@@ -109,5 +109,11 @@ export async function recordRunTerminal(
       terminal: true,
     });
   }
+  if (status === "expired" || status === "rejected") {
+    // Close a still-pending gate: on expiry nobody decided (the only writer);
+    // on rejection the route normally recorded the decision already and this
+    // conditional update is a no-op fallback (Unit 14).
+    await repos.approvals.closePendingForRun({ orgId, runId: run.id, status });
+  }
   return { ok: true };
 }

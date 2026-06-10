@@ -10,6 +10,7 @@ import {
   type ResearchFindings,
 } from "@conductor/shared";
 import type { RecordRunTerminalInput } from "../activities/projections";
+import type { CreateApprovalRequestInput } from "../activities/approvals";
 import { approvalDecisionSignal, contentPipeline, runStateQuery } from "./content-pipeline";
 
 /**
@@ -50,6 +51,7 @@ interface MockTracker {
   writeCalls: number;
   publishCalls: number;
   runStarted: number;
+  approvalRequests: CreateApprovalRequestInput[];
   terminal: RecordRunTerminalInput[];
 }
 
@@ -59,6 +61,7 @@ function makeMocks(opts: { researchFailuresBeforeSuccess?: number } = {}) {
     writeCalls: 0,
     publishCalls: 0,
     runStarted: 0,
+    approvalRequests: [],
     terminal: [],
   };
   const failures = opts.researchFailuresBeforeSuccess ?? 0;
@@ -70,7 +73,10 @@ function makeMocks(opts: { researchFailuresBeforeSuccess?: number } = {}) {
       }
       return findings;
     },
-    requestApproval: async () => ({ requested: true as const }),
+    createApprovalRequest: async (approvalInput: CreateApprovalRequestInput) => {
+      tracker.approvalRequests.push(approvalInput);
+      return { approvalId: "2c8e7a1e-1111-4222-8333-444455556666" };
+    },
     writeDraft: async (): Promise<BlogDraft> => {
       tracker.writeCalls += 1;
       return draft;
@@ -146,6 +152,13 @@ describe("contentPipeline", () => {
     expect(tracker.researchAttempts).toBe(1);
     expect(tracker.publishCalls).toBe(1);
     expect(tracker.runStarted).toBeGreaterThanOrEqual(1);
+    // The gate record carries the org and the research context the reviewer renders.
+    expect(tracker.approvalRequests).toHaveLength(1);
+    expect(tracker.approvalRequests[0]).toMatchObject({
+      orgId: "org-1",
+      approverId: input.approverId,
+      context: { research: findings },
+    });
     expect(tracker.terminal).toHaveLength(1);
     expect(tracker.terminal[0]).toMatchObject({
       orgId: "org-1",

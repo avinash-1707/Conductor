@@ -42,3 +42,26 @@ export const approvalSignalPayloadSchema = z.object({
   decidedAt: z.iso.datetime(),
 });
 export type ApprovalSignalPayload = z.infer<typeof approvalSignalPayloadSchema>;
+
+/**
+ * Approval-API resource (Unit 14). Serialized from `approval_requests` rows —
+ * ISO timestamps, `org_id` never echoed (the caller's org is implicit from
+ * the verified JWT); the web client parses responses against this.
+ */
+export const approvalResourceSchema = z.object({
+  id: z.uuid(),
+  runId: z.uuid(),
+  status: approvalStatusSchema,
+  context: approvalContextSchema,
+  reviewerId: z.string().min(1).nullable(),
+  decidedAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+});
+export type ApprovalResource = z.infer<typeof approvalResourceSchema>;
+
+/** `GET /approvals` — pending queue, cursor-paginated, newest first. */
+export const approvalListResponseSchema = z.object({
+  items: z.array(approvalResourceSchema),
+  nextCursor: z.string().min(1).nullable(),
+});
+export type ApprovalListResponse = z.infer<typeof approvalListResponseSchema>;

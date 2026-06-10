@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   approvalContextSchema,
   approvalDecisionSchema,
+  approvalListResponseSchema,
+  approvalResourceSchema,
   approvalSignalPayloadSchema,
   approvalStatusSchema,
 } from "./approval";
@@ -76,5 +78,58 @@ describe("approvalContextSchema", () => {
 
   it("rejects missing research", () => {
     expect(approvalContextSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("approvalResourceSchema", () => {
+  const research = {
+    summary: "A summary of findings.",
+    sources: [{ title: "Source", url: "https://example.com", takeaway: "Useful." }],
+    keyPoints: ["Point one"],
+  };
+  const valid = {
+    id: "0c8e7a1e-1111-4222-8333-444455556666",
+    runId: "1c8e7a1e-1111-4222-8333-444455556666",
+    status: "pending",
+    context: { research },
+    reviewerId: null,
+    decidedAt: null,
+    createdAt: "2026-06-10T12:00:00.000Z",
+  };
+
+  it("accepts a pending request and a decided one", () => {
+    expect(approvalResourceSchema.safeParse(valid).success).toBe(true);
+    expect(
+      approvalResourceSchema.safeParse({
+        ...valid,
+        status: "approved",
+        reviewerId: "user_1",
+        decidedAt: "2026-06-10T13:00:00.000Z",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a non-uuid run id and a malformed timestamp (boundary)", () => {
+    expect(
+      approvalResourceSchema.safeParse({ ...valid, runId: "not-a-uuid" }).success,
+    ).toBe(false);
+    expect(
+      approvalResourceSchema.safeParse({ ...valid, createdAt: "today" }).success,
+    ).toBe(false);
+  });
+
+  it("never carries an org id in the contract", () => {
+    expect("orgId" in approvalResourceSchema.shape).toBe(false);
+  });
+});
+
+describe("approvalListResponseSchema", () => {
+  it("accepts pages with and without a next cursor", () => {
+    expect(
+      approvalListResponseSchema.safeParse({ items: [], nextCursor: null }).success,
+    ).toBe(true);
+    expect(
+      approvalListResponseSchema.safeParse({ items: [], nextCursor: "" }).success,
+    ).toBe(false);
   });
 });

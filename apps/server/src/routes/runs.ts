@@ -6,10 +6,11 @@ import {
   type RunResource,
   type RunStepResource,
 } from "@conductor/shared";
-import type { Run, RunCursor, Step } from "@conductor/db";
+import type { Run, Step } from "@conductor/db";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
+import { decodeKeysetCursor, encodeKeysetCursor } from "../lib/keyset-cursor";
 import { repos } from "../repos/index";
-import type { RunStarter } from "../temporal";
+import type { RunGateway } from "../temporal";
 
 /**
  * Run lifecycle routes (Unit 13). Handlers validate, authorize, touch the
@@ -24,27 +25,6 @@ const listQuerySchema = z.object({
 });
 
 const idParamSchema = z.object({ id: z.uuid() });
-
-/** Opaque list cursor: base64url JSON of the keyset position. */
-const cursorPayloadSchema = z.object({ c: z.iso.datetime(), i: z.uuid() });
-
-function encodeCursor(cursor: RunCursor): string {
-  return Buffer.from(
-    JSON.stringify({ c: cursor.createdAt.toISOString(), i: cursor.id }),
-  ).toString("base64url");
-}
-
-function decodeCursor(raw: string): RunCursor {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
-  } catch {
-    throw new ValidationError("Invalid cursor");
-  }
-  const payload = cursorPayloadSchema.safeParse(parsed);
-  if (!payload.success) throw new ValidationError("Invalid cursor");
-  return { createdAt: new Date(payload.data.c), id: payload.data.i };
-}
 
 function toRunResource(run: Run): RunResource {
   return {
@@ -82,7 +62,7 @@ function activeOrgId(req: FastifyRequest): string {
   return orgId;
 }
 
-export function runRoutes(temporal: RunStarter): FastifyPluginAsync {
+export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
   return async (app) => {
     app.post(
       "/runs",
@@ -142,7 +122,9 @@ export function runRoutes(temporal: RunStarter): FastifyPluginAsync {
         const orgId = activeOrgId(req);
         const query = listQuerySchema.safeParse(req.query);
         if (!query.success) throw new ValidationError("Invalid list parameters");
-        const cursor = query.data.cursor ? decodeCursor(query.data.cursor) : undefined;
+        const cursor = query.data.cursor
+          ? decodeKeysetCursor(query.data.cursor)
+          : undefined;
 
         const page = await repos.runs.listRuns({
           orgId,
@@ -151,7 +133,7 @@ export function runRoutes(temporal: RunStarter): FastifyPluginAsync {
         });
         return {
           items: page.items.map(toRunResource),
-          nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
+          nextCursor: page.nextCursor ? encodeKeysetCursor(page.nextCursor) : null,
         };
       },
     );

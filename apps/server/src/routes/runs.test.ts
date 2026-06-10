@@ -10,7 +10,7 @@ import {
 import { buildApp } from "../app";
 import { auth } from "../auth/auth";
 import { repos } from "../repos/index";
-import type { RunStarter } from "../temporal";
+import type { RunGateway } from "../temporal";
 import { signUp, signUpOwner } from "../test-utils/auth";
 
 /**
@@ -25,8 +25,9 @@ const checks = {
   temporal: async () => true,
 };
 
-const starter: RunStarter = {
+const starter: RunGateway = {
   startContentPipeline: vi.fn(),
+  signalApprovalDecision: vi.fn(),
 };
 
 let app: FastifyInstance;

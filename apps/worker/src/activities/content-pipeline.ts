@@ -21,8 +21,8 @@ import { resolveOrgApiKey } from "./org-keys";
  * object → Zod-validated output (code-standards Temporal), idempotent
  * (architecture invariant 2), wrapped in `withStepTracking` so every attempt
  * lands in the `activity_log` / `workflow_runs` projections (Unit 12), and
- * runs on the org's decrypted OpenRouter key (invariant 12). Unit 14 replaces
- * requestApproval with the Postgres createApprovalRequest.
+ * runs on the org's decrypted OpenRouter key (invariant 12). The approval
+ * gate record lives in ./approvals (Unit 14).
  */
 
 export const researchInputSchema = z.object({
@@ -48,25 +48,6 @@ export const research = withStepTracking(
     return runResearch({ topic, keywords, tone }, llm);
   },
 );
-
-export const requestApprovalInputSchema = z.object({
-  approverId: z.string().min(1),
-  summary: z.string().min(1),
-});
-export type RequestApprovalInput = z.infer<typeof requestApprovalInputSchema>;
-
-export const requestApprovalOutputSchema = z.object({
-  requested: z.literal(true),
-});
-export type RequestApprovalOutput = z.infer<typeof requestApprovalOutputSchema>;
-
-export async function requestApproval(
-  input: RequestApprovalInput,
-): Promise<RequestApprovalOutput> {
-  const { approverId } = requestApprovalInputSchema.parse(input);
-  logger.info({ activity: "requestApproval", approverId }, "approval requested (stub)");
-  return { requested: true };
-}
 
 export const writeDraftInputSchema = z.object({
   orgId: z.string().min(1),

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "approval_requests_run_uidx" ON "approval_requests" USING btree ("run_id");

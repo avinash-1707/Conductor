@@ -161,7 +161,9 @@ describe("approval_requests isolation", () => {
     );
     expect(await approvalsRepo.findApprovalById({ orgId: orgB, id: approval.id })).toBeUndefined();
     expect(
-      (await approvalsRepo.listPendingApprovals({ orgId: orgB })).some((a) => a.id === approval.id),
+      (await approvalsRepo.listPendingApprovals({ orgId: orgB, limit: 100 })).items.some(
+        (a) => a.id === approval.id,
+      ),
     ).toBe(false);
   });
 });
