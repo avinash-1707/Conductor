@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { Logo } from "@/components/landing/icons";
+import { useApprovalsQuery, pendingCountLabel } from "@/lib/use-approvals";
 import { OrgSwitcher } from "./org-switcher";
 
 type NavItem = { href: string; label: string; icon: ComponentType<LucideProps> };
@@ -24,6 +25,8 @@ const NAV: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const approvals = useApprovalsQuery();
+  const badge = pendingCountLabel(approvals.data);
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line-soft bg-surface md:flex">
@@ -57,6 +60,11 @@ export function Sidebar() {
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
+                  {item.href === "/approvals" && badge && (
+                    <span className="ml-auto rounded-full bg-suspended/15 px-1.5 py-0.5 font-mono text-[0.65rem] text-suspended">
+                      {badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             );
