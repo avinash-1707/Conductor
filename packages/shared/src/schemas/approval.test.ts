@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { approvalDecisionSchema, approvalSignalPayloadSchema } from "./approval";
+import {
+  approvalContextSchema,
+  approvalDecisionSchema,
+  approvalSignalPayloadSchema,
+  approvalStatusSchema,
+} from "./approval";
 
 describe("approvalDecisionSchema", () => {
   it("accepts approved and rejected", () => {
@@ -38,5 +43,38 @@ describe("approvalSignalPayloadSchema", () => {
     expect(approvalSignalPayloadSchema.safeParse({ ...valid, decision: "maybe" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("approvalStatusSchema", () => {
+  it("accepts the four lifecycle states", () => {
+    for (const s of ["pending", "approved", "rejected", "expired"]) {
+      expect(approvalStatusSchema.safeParse(s).success).toBe(true);
+    }
+  });
+
+  it("rejects anything else", () => {
+    expect(approvalStatusSchema.safeParse("cancelled").success).toBe(false);
+  });
+});
+
+describe("approvalContextSchema", () => {
+  const research = {
+    summary: "A summary of findings.",
+    sources: [{ title: "Source", url: "https://example.com", takeaway: "Useful." }],
+    keyPoints: ["Point one"],
+  };
+
+  it("accepts research-only context", () => {
+    expect(approvalContextSchema.safeParse({ research }).success).toBe(true);
+  });
+
+  it("accepts research with a draft", () => {
+    const draft = { title: "Title", markdown: "# Body", wordCount: 2 };
+    expect(approvalContextSchema.safeParse({ research, draft }).success).toBe(true);
+  });
+
+  it("rejects missing research", () => {
+    expect(approvalContextSchema.safeParse({}).success).toBe(false);
   });
 });
