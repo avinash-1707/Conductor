@@ -4,6 +4,8 @@ import {
   researchFindingsSchema,
   blogDraftSchema,
   blogPostPipelineOutputSchema,
+  contentPipelineResultSchema,
+  runStateSchema,
 } from "./blog-pipeline";
 
 describe("blogPostPipelineInputSchema", () => {
@@ -126,5 +128,73 @@ describe("blogPostPipelineOutputSchema", () => {
     expect(blogPostPipelineOutputSchema.safeParse({ draft, deliveredAt: "nope" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("contentPipelineResultSchema", () => {
+  const output = {
+    draft: { title: "T", markdown: "# Body", wordCount: 1200 },
+    deliveredAt: "2026-06-10T12:00:00.000Z",
+  };
+
+  it("accepts each terminal variant", () => {
+    expect(
+      contentPipelineResultSchema.safeParse({ status: "completed", output }).success,
+    ).toBe(true);
+    expect(
+      contentPipelineResultSchema.safeParse({
+        status: "rejected",
+        reviewerId: "user_42",
+        decidedAt: "2026-06-10T12:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(contentPipelineResultSchema.safeParse({ status: "expired" }).success).toBe(true);
+  });
+
+  it("rejects a completed result without output and a rejected result without reviewer", () => {
+    expect(contentPipelineResultSchema.safeParse({ status: "completed" }).success).toBe(false);
+    expect(
+      contentPipelineResultSchema.safeParse({
+        status: "rejected",
+        decidedAt: "2026-06-10T12:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown status discriminant", () => {
+    expect(contentPipelineResultSchema.safeParse({ status: "running" }).success).toBe(false);
+  });
+
+  it("rejects a malformed decidedAt (boundary)", () => {
+    expect(
+      contentPipelineResultSchema.safeParse({
+        status: "rejected",
+        reviewerId: "user_42",
+        decidedAt: "yesterday",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("runStateSchema", () => {
+  it("accepts a running state with a step and a terminal state with null step", () => {
+    expect(runStateSchema.safeParse({ status: "running", currentStep: "research" }).success).toBe(
+      true,
+    );
+    expect(runStateSchema.safeParse({ status: "suspended", currentStep: "approval" }).success).toBe(
+      true,
+    );
+    expect(runStateSchema.safeParse({ status: "completed", currentStep: null }).success).toBe(true);
+  });
+
+  it("rejects an unknown step and an unknown status", () => {
+    expect(runStateSchema.safeParse({ status: "running", currentStep: "deploy" }).success).toBe(
+      false,
+    );
+    expect(runStateSchema.safeParse({ status: "paused", currentStep: null }).success).toBe(false);
+  });
+
+  it("rejects a missing currentStep (must be explicitly null)", () => {
+    expect(runStateSchema.safeParse({ status: "completed" }).success).toBe(false);
   });
 });
