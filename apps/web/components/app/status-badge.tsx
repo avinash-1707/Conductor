@@ -56,3 +56,25 @@ export function StatusBadge({
     </span>
   );
 }
+
+/**
+ * The status dot on its own — used as a timeline-rail node marker (Unit 19).
+ * Same centralized color map as the badge; the running tone carries the brand's
+ * single meaningful pulse (reduced-motion disables it globally).
+ */
+export function StatusDot({
+  status,
+  className = "",
+}: {
+  status: AnyStatus;
+  className?: string;
+}) {
+  const { tone } = STATUS[status];
+  const c = TONE[tone];
+  return (
+    <span
+      className={`block h-3 w-3 rounded-full ${c.dot} ${tone === "running" ? "node-pulse" : ""} ${className}`}
+      aria-hidden
+    />
+  );
+}
