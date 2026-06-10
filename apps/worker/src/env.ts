@@ -16,6 +16,11 @@ const envSchema = z.object({
   // OpenRouter model slug for the research agent (Unit 05). Writing uses its own
   // (stronger) model in Unit 06.
   RESEARCH_MODEL: z.string().min(1).default("anthropic/claude-sonnet-4.5"),
+  // Stronger model for the writing agent (Unit 06).
+  WRITING_MODEL: z.string().min(1).default("anthropic/claude-opus-4.8"),
+  // Optional publish target. When set, the publish activity POSTs the draft with
+  // an Idempotency-Key header; when absent it simulates delivery (Phase 1 stub).
+  PUBLISH_WEBHOOK_URL: z.url().optional(),
 });
 
 export const env = envSchema.parse(process.env);

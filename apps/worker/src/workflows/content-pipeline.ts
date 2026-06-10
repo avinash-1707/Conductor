@@ -6,6 +6,7 @@ import {
   log,
   proxyActivities,
   setHandler,
+  workflowInfo,
 } from "@temporalio/workflow";
 import {
   SIGNALS,
@@ -107,10 +108,11 @@ export async function contentPipeline(
   }
 
   state = { status: "running", currentStep: "write" };
-  const draft = await writeDraft({ topic, findings, tone, wordCount });
+  const draft = await writeDraft({ topic, keywords, tone, wordCount, findings });
 
   state = { status: "running", currentStep: "publish" };
-  const receipt = await publish({ draft });
+  // Run-scoped idempotency key so a publish retry delivers exactly once.
+  const receipt = await publish({ draft, idempotencyKey: workflowInfo().workflowId });
 
   state = { status: "completed", currentStep: null };
   return {
