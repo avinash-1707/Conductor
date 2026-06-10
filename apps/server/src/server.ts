@@ -1,5 +1,6 @@
 import { buildApp } from "./app";
 import { createDeps } from "./deps";
+import { createRunStarter } from "./temporal";
 import { auth } from "./auth/auth";
 import { env } from "./env";
 import { logger } from "./logger";
@@ -11,7 +12,8 @@ import { logger } from "./logger";
  */
 async function main(): Promise<void> {
   const deps = createDeps(env);
-  const app = await buildApp({ checks: deps.checks, auth });
+  const temporal = createRunStarter(deps.temporalConnection, env.TEMPORAL_NAMESPACE);
+  const app = await buildApp({ checks: deps.checks, auth, temporal });
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {

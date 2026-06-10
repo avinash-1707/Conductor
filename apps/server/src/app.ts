@@ -6,9 +6,11 @@ import { env } from "./env";
 import { AppError } from "./errors";
 import { healthRoutes } from "./routes/health";
 import { apiKeyRoutes } from "./routes/api-keys";
+import { runRoutes } from "./routes/runs";
 import { registerAuth } from "./auth/plugin";
 import type { Auth } from "./auth/auth";
 import type { ReadinessChecks } from "./deps";
+import type { RunStarter } from "./temporal";
 
 /**
  * Builds the Fastify app (no `listen` — usable directly by `fastify.inject`
@@ -19,6 +21,8 @@ import type { ReadinessChecks } from "./deps";
 export async function buildApp(opts: {
   checks: ReadinessChecks;
   auth?: Auth;
+  /** Temporal client seam — run routes register when auth + temporal are present. */
+  temporal?: RunStarter;
   /** Optional pino destination — tests pass a capturing stream to assert logs. */
   logStream?: DestinationStream;
 }): Promise<FastifyInstance> {
@@ -75,6 +79,9 @@ export async function buildApp(opts: {
   if (opts.auth) {
     await registerAuth(app, { auth: opts.auth });
     await app.register(apiKeyRoutes);
+    if (opts.temporal) {
+      await app.register(runRoutes(opts.temporal));
+    }
   }
 
   return app;

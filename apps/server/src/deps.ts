@@ -17,6 +17,8 @@ export interface ReadinessChecks {
 
 export interface Deps {
   checks: ReadinessChecks;
+  /** Lazily-created shared Temporal gRPC connection (readiness + workflow client). */
+  temporalConnection(): Promise<Connection>;
   close(): Promise<void>;
 }
 
@@ -82,5 +84,5 @@ export function createDeps(env: Env): Deps {
     ]);
   }
 
-  return { checks, close };
+  return { checks, temporalConnection: temporalConn, close };
 }
