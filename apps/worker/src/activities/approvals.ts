@@ -3,6 +3,7 @@ import { ApplicationFailure } from "@temporalio/activity";
 import { approvalContextSchema } from "@conductor/shared";
 import { repos } from "../db";
 import { logger } from "../logger";
+import { publishRunEvent } from "../realtime/publisher";
 import { workflowExecutionContext } from "./activity-context";
 
 /**
@@ -56,6 +57,15 @@ export async function createApprovalRequest(
     context,
   });
   await repos.runs.markRunStatus({ orgId, temporalWorkflowId, status: "suspended" });
+
+  const at = new Date().toISOString();
+  await publishRunEvent({ type: "run.status", runId: run.id, status: "suspended", at });
+  await publishRunEvent({
+    type: "approval.requested",
+    runId: run.id,
+    approvalId: approval.id,
+    at,
+  });
 
   logger.info(
     {

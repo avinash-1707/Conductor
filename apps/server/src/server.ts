@@ -13,7 +13,7 @@ import { logger } from "./logger";
 async function main(): Promise<void> {
   const deps = createDeps(env);
   const temporal = createRunGateway(deps.temporalConnection, env.TEMPORAL_NAMESPACE);
-  const app = await buildApp({ checks: deps.checks, auth, temporal });
+  const app = await buildApp({ checks: deps.checks, auth, temporal, realtime: true });
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {

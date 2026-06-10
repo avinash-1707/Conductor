@@ -6,6 +6,8 @@ import { LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/landing/theme-toggle";
 import { clearSessionToken, signOut, useSession } from "@/lib/auth-client";
 import { clearApiJwt } from "@/lib/jwt";
+import { useConnectionStatus } from "@/lib/use-run-events";
+import type { ConnectionStatus } from "./run-events-provider";
 
 function titleFor(pathname: string): string {
   if (pathname.startsWith("/runs")) return "Runs";
@@ -15,12 +17,26 @@ function titleFor(pathname: string): string {
   return "Conductor";
 }
 
-/** Placeholder until Unit 17 wires live WebSocket state. */
+const INDICATOR: Record<
+  ConnectionStatus,
+  { label: string; dot: string; text: string; pulse: boolean }
+> = {
+  connecting: { label: "connecting", dot: "bg-pending", text: "text-faint", pulse: false },
+  live: { label: "live", dot: "bg-completed", text: "text-muted", pulse: true },
+  reconnecting: { label: "reconnecting", dot: "bg-retrying", text: "text-retrying", pulse: true },
+  offline: { label: "offline", dot: "bg-failed", text: "text-faint", pulse: false },
+};
+
 function ConnectionIndicator() {
+  const status = useConnectionStatus();
+  const s = INDICATOR[status];
   return (
-    <span className="hidden items-center gap-1.5 font-mono text-[0.7rem] text-faint sm:flex">
-      <span className="h-1.5 w-1.5 rounded-full bg-pending" />
-      offline
+    <span
+      className={`hidden items-center gap-1.5 font-mono text-[0.7rem] sm:flex ${s.text}`}
+      title={`Realtime connection: ${s.label}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${s.dot} ${s.pulse ? "node-pulse" : ""}`} />
+      {s.label}
     </span>
   );
 }

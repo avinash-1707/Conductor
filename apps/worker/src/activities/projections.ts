@@ -7,6 +7,7 @@ import {
 } from "@conductor/shared";
 import { repos } from "../db";
 import { logger } from "../logger";
+import { publishRunEvent } from "../realtime/publisher";
 import { workflowExecutionContext } from "./activity-context";
 
 /**
@@ -115,5 +116,11 @@ export async function recordRunTerminal(
     // conditional update is a no-op fallback (Unit 14).
     await repos.approvals.closePendingForRun({ orgId, runId: run.id, status });
   }
+  await publishRunEvent({
+    type: "run.status",
+    runId: run.id,
+    status,
+    at: new Date().toISOString(),
+  });
   return { ok: true };
 }

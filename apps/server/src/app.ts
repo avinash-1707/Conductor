@@ -9,6 +9,8 @@ import { apiKeyRoutes } from "./routes/api-keys";
 import { runRoutes } from "./routes/runs";
 import { approvalRoutes } from "./routes/approvals";
 import { registerAuth } from "./auth/plugin";
+import { createSessionVerifier } from "./auth/verify";
+import { createRealtime } from "./realtime/io";
 import type { Auth } from "./auth/auth";
 import type { ReadinessChecks } from "./deps";
 import type { RunGateway } from "./temporal";
@@ -24,6 +26,9 @@ export async function buildApp(opts: {
   auth?: Auth;
   /** Temporal client seam — run/approval routes register when auth + temporal are present. */
   temporal?: RunGateway;
+  /** When true (and auth is present), attach the Socket.IO realtime relay. Off
+   *  by default so inject-only tests need no Redis; server.ts and the ws test set it. */
+  realtime?: boolean;
   /** Optional pino destination — tests pass a capturing stream to assert logs. */
   logStream?: DestinationStream;
 }): Promise<FastifyInstance> {
@@ -89,6 +94,17 @@ export async function buildApp(opts: {
     if (opts.temporal) {
       await app.register(runRoutes(opts.temporal));
       await app.register(approvalRoutes(opts.temporal));
+    }
+    if (opts.realtime) {
+      // Attach Socket.IO to Fastify's underlying HTTP server. The verifier
+      // reuses the JWKS-backed token verification used by REST.
+      const realtime = createRealtime({
+        httpServer: app.server,
+        verify: createSessionVerifier(opts.auth),
+        redisUrl: env.REDIS_URL,
+        corsOrigin: env.WEB_ORIGIN,
+      });
+      app.addHook("onClose", () => realtime.close());
     }
   }
 

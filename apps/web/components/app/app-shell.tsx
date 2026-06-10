@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useSession } from "@/lib/auth-client";
 import { Spinner } from "./ui";
+import { RunEventsProvider } from "./run-events-provider";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 
@@ -37,14 +38,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <Sidebar />
-      <div className="flex min-h-screen flex-col md:pl-60">
-        <TopBar />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-8 py-6">
-          {children}
-        </main>
+    <RunEventsProvider>
+      <div className="min-h-screen bg-canvas">
+        <Sidebar />
+        <div className="flex min-h-screen flex-col md:pl-60">
+          <TopBar />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-8 py-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </RunEventsProvider>
   );
 }

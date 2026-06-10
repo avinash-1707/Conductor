@@ -5,6 +5,7 @@ import * as activities from "./activities";
 import { pool } from "./db";
 import { env } from "./env";
 import { logger } from "./logger";
+import { closeRealtime } from "./realtime/publisher";
 
 /**
  * Worker bootstrap. Connects to Temporal, bundles the deterministic workflows
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
     logger.info("worker shut down cleanly");
   } finally {
     await connection.close();
+    await closeRealtime();
     await pool.end();
   }
 }

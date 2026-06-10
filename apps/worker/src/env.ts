@@ -14,6 +14,10 @@ const envSchema = z.object({
     .string()
     .min(1)
     .default("postgresql://conductor:conductor@localhost:5432/conductor"),
+  // Pub/sub for live step/run status events (Unit 17). Ephemeral — a publish
+  // failure is logged and swallowed, never fails an activity. Same local default
+  // as the server.
+  REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   // AES-256-GCM key (base64, 32 bytes) used to DECRYPT per-org OpenRouter keys
   // at activity call time (invariant 12). Must match the server's key. The
   // default is clearly dev-only; PRODUCTION MUST override (`openssl rand -base64 32`).

@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { StepKind } from "@conductor/shared";
 import { repos } from "../db";
 import { logger } from "../logger";
+import { publishRunEvent } from "../realtime/publisher";
 import { workflowExecutionContext } from "./activity-context";
 
 /**
@@ -74,6 +75,16 @@ export function withStepTracking<I extends { orgId: string }, O>(
       temporalWorkflowId,
       status: "running",
     });
+    const at = () => new Date().toISOString();
+    await publishRunEvent({ type: "run.status", runId: run.id, status: "running", at: at() });
+    await publishRunEvent({
+      type: "step.status",
+      runId: run.id,
+      step: stepKind,
+      status: "running",
+      attempt,
+      at: at(),
+    });
 
     try {
       const output = await fn(input);
@@ -87,6 +98,14 @@ export function withStepTracking<I extends { orgId: string }, O>(
       } catch (projectionErr) {
         log.error({ err: projectionErr }, "step completion projection write failed");
       }
+      await publishRunEvent({
+        type: "step.status",
+        runId: run.id,
+        step: stepKind,
+        status: "completed",
+        attempt,
+        at: at(),
+      });
       return output;
     } catch (err) {
       const terminal = err instanceof ApplicationFailure && err.nonRetryable === true;
@@ -101,6 +120,14 @@ export function withStepTracking<I extends { orgId: string }, O>(
       } catch (projectionErr) {
         log.error({ err: projectionErr }, "step failure projection write failed");
       }
+      await publishRunEvent({
+        type: "step.status",
+        runId: run.id,
+        step: stepKind,
+        status: terminal ? "failed" : "retrying",
+        attempt,
+        at: at(),
+      });
       throw err;
     }
   };
