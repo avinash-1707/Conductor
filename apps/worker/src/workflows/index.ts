@@ -3,3 +3,8 @@
 export { helloWorkflow } from "./hello";
 export type { HelloWorkflowInput } from "./hello";
 export { contentPipeline, approvalDecisionSignal, runStateQuery } from "./content-pipeline";
+export {
+  interpreterWorkflow,
+  interpreterApprovalSignal,
+  interpreterRunStateQuery,
+} from "./interpreter";
