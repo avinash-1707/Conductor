@@ -1,5 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
+  "comment": "types:[node] — crypto.ts uses node:crypto; this package now needs node ambient types (Unit 11).",
+  "compilerOptions": {
+    "types": ["node"]
+  },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }

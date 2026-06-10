@@ -29,6 +29,16 @@ const envSchema = z.object({
   // Google OAuth is enabled only when both are present.
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+
+  // --- Platform secrets ---
+  // AES-256-GCM key (base64, decodes to 32 bytes) for encrypting per-org
+  // OpenRouter API keys at rest (Unit 11). Defaulted to a clearly dev-only key
+  // so local runs/tests need zero config; PRODUCTION MUST override with a real
+  // key: `openssl rand -base64 32`.
+  PLATFORM_ENCRYPTION_KEY: z
+    .string()
+    .min(1)
+    .default("ZGV2LW9ubHktaW5zZWN1cmUtcGxhdGZvcm0ta2V5ISE="),
 });
 
 export type Env = z.infer<typeof envSchema>;

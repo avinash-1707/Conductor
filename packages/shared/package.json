@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./crypto": "./src/crypto.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -18,6 +19,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/node": "^25.9.2",
     "vitest": "^4.1.8"
   }
 }

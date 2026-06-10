@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import type { DestinationStream } from "pino";
 import { env } from "./env";
 import { AppError } from "./errors";
 import { healthRoutes } from "./routes/health";
+import { apiKeyRoutes } from "./routes/api-keys";
 import { registerAuth } from "./auth/plugin";
 import type { Auth } from "./auth/auth";
 import type { ReadinessChecks } from "./deps";
@@ -17,9 +19,15 @@ import type { ReadinessChecks } from "./deps";
 export async function buildApp(opts: {
   checks: ReadinessChecks;
   auth?: Auth;
+  /** Optional pino destination — tests pass a capturing stream to assert logs. */
+  logStream?: DestinationStream;
 }): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: { level: env.LOG_LEVEL, base: { app: "server" } },
+    logger: {
+      level: env.LOG_LEVEL,
+      base: { app: "server" },
+      ...(opts.logStream ? { stream: opts.logStream } : {}),
+    },
     requestIdHeader: "x-request-id",
     requestIdLogLabel: "requestId",
     genReqId: (req) => {
@@ -66,6 +74,7 @@ export async function buildApp(opts: {
 
   if (opts.auth) {
     await registerAuth(app, { auth: opts.auth });
+    await app.register(apiKeyRoutes);
   }
 
   return app;
