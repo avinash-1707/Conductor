@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ApplicationFailure } from "@temporalio/activity";
 import {
   blogToneSchema,
   researchFindingsSchema,
@@ -6,7 +7,9 @@ import {
   type ResearchFindings,
   type BlogDraft,
 } from "@conductor/shared";
+import { env } from "../env";
 import { logger } from "../logger";
+import { createOpenRouterResearchLLM, runResearch } from "./agents/research";
 
 /**
  * Phase 1 stub activities for the content pipeline. Each is a single
@@ -25,17 +28,35 @@ export const researchInputSchema = z.object({
 export type ResearchInput = z.infer<typeof researchInputSchema>;
 
 export async function research(input: ResearchInput): Promise<ResearchFindings> {
-  const { topic, keywords } = researchInputSchema.parse(input);
-  logger.info({ activity: "research", topic }, "research stub running");
-  return researchFindingsSchema.parse({
-    summary: `Stub research summary for "${topic}" covering ${keywords.join(", ")}.`,
-    sources: keywords.map((keyword) => ({
-      title: `Stub source on ${keyword}`,
-      url: `https://example.com/research/${encodeURIComponent(keyword)}`,
-      takeaway: `Stub takeaway about ${keyword} in the context of ${topic}.`,
-    })),
-    keyPoints: keywords.map((keyword) => `Key point: ${keyword} matters for ${topic}.`),
+  // Invalid input is a permanent error — never burn retries on it (invariant 2,
+  // code-standards error taxonomy).
+  const parsed = researchInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw ApplicationFailure.nonRetryable(
+      `Invalid research input: ${parsed.error.message}`,
+      "InvalidResearchInput",
+    );
+  }
+  const { topic, keywords, tone } = parsed.data;
+
+  // Phase 1: single platform key from env. Phase 2 (Unit 12) swaps to the org's
+  // decrypted OpenRouter key. A missing key is a config error, not transient.
+  if (!env.OPENROUTER_API_KEY) {
+    throw ApplicationFailure.nonRetryable(
+      "OPENROUTER_API_KEY is not set; the research agent cannot run.",
+      "MissingOpenRouterKey",
+    );
+  }
+
+  logger.info(
+    { activity: "research", topic, model: env.RESEARCH_MODEL },
+    "research agent running",
+  );
+  const llm = createOpenRouterResearchLLM({
+    apiKey: env.OPENROUTER_API_KEY,
+    model: env.RESEARCH_MODEL,
   });
+  return runResearch({ topic, keywords, tone }, llm);
 }
 
 export const requestApprovalInputSchema = z.object({
