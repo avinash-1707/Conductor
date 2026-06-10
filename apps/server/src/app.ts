@@ -41,7 +41,13 @@ export async function buildApp(opts: {
     },
   });
 
-  await app.register(cors, { origin: env.WEB_ORIGIN, credentials: true });
+  await app.register(cors, {
+    origin: env.WEB_ORIGIN,
+    credentials: true,
+    // The browser auth client reads the session token / JWT from these headers
+    // cross-origin (bearer flow); they must be exposed to client JS.
+    exposedHeaders: ["set-auth-token", "set-auth-jwt"],
+  });
 
   // One central handler — handlers throw typed errors, never hand-roll responses.
   app.setErrorHandler((err: FastifyError, req, reply) => {

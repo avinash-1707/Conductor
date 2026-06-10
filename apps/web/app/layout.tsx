@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import { SmoothScroll } from "../components/landing/smooth-scroll";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const display = Fraunces({
@@ -47,7 +48,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-canvas font-sans text-ink antialiased">
         <SmoothScroll />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
