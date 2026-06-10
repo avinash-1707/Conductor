@@ -78,10 +78,29 @@ with the retry visible in the step history.
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d
-OPENROUTER_API_KEY=sk-or-... ./scripts/demo-reliability.sh
+CONDUCTOR_ORG_ID=org_... ./scripts/demo-reliability.sh   # an org with an OpenRouter key stored
 ```
 
 The script starts a run, hard-kills the worker (`SIGKILL`) while Research is in
 flight, restarts it, approves the gate, and prints the Temporal UI link so you
 can inspect the recovered activity's attempts. Tunables: `TOPIC`, `KILL_DELAY`,
 `RESTART_DELAY`, `APPROVE_DELAY`.
+
+## Approval demo (pause/resume)
+
+The human-in-the-loop proof: a run suspends at the approval gate holding no
+worker slot, and resumes within seconds of the Approve call. This demo drives
+the **real product API** end-to-end and is fully self-contained — it signs up
+a fresh demo user, creates an org, stores its OpenRouter key (encrypted at
+rest), starts a run, shows the reviewer's research context while the run is
+suspended, approves it, and prints the measured decision→resume latency.
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+OPENROUTER_API_KEY=sk-or-... ./scripts/demo-approval.sh
+```
+
+The key becomes the demo org's key via `PUT /orgs/api-key` and is never
+printed. A server already running at `SERVER_URL` (default
+`http://localhost:4000`) is reused; otherwise the script boots one. Tunables:
+`TOPIC`, `KEYWORDS`, `TONE`, `WORD_COUNT`, `APPROVE_DELAY`.
