@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { inArray } from "drizzle-orm";
 import type { BlogPostPipelineInput } from "@conductor/shared";
+import { organization } from "@conductor/db";
 import { db, pool } from "../db/client";
-import { organization } from "../db/schema";
+import { repos } from "./index";
 import * as runsRepo from "./runs";
 import * as activityLogRepo from "./activity-log";
 import * as approvalsRepo from "./approvals";
@@ -68,7 +69,76 @@ describe("workflow_runs isolation", () => {
 
     expect((await runsRepo.findRunById({ orgId: orgA, id: run.id }))?.id).toBe(run.id);
     expect(await runsRepo.findRunById({ orgId: orgB, id: run.id })).toBeUndefined();
-    expect((await runsRepo.listRuns({ orgId: orgB })).some((r) => r.id === run.id)).toBe(false);
+    expect(
+      (await runsRepo.listRuns({ orgId: orgB, limit: 100 })).items.some(
+        (r) => r.id === run.id,
+      ),
+    ).toBe(false);
+  });
+
+  it("ensureRunStarted is idempotent and converges on a pre-created row", async () => {
+    const temporalWorkflowId = `content-${randomUUID()}`;
+    const preCreated = await runsRepo.createRun({
+      orgId: orgA,
+      workflowName: "contentPipeline",
+      temporalWorkflowId,
+      input: sampleInput,
+      status: "pending",
+    });
+
+    const first = await repos.runs.ensureRunStarted({
+      orgId: orgA,
+      temporalWorkflowId,
+      temporalRunId: "tr-1",
+      workflowName: "contentPipeline",
+      input: sampleInput,
+    });
+    const second = await repos.runs.ensureRunStarted({
+      orgId: orgA,
+      temporalWorkflowId,
+      temporalRunId: "tr-1",
+      workflowName: "contentPipeline",
+      input: sampleInput,
+    });
+
+    expect(first.id).toBe(preCreated.id);
+    expect(second.id).toBe(preCreated.id);
+    expect(second.status).toBe("running");
+    expect(second.startedAt).toEqual(first.startedAt);
+  });
+
+  it("markRunTerminal preserves the first completion time across retries", async () => {
+    const temporalWorkflowId = `content-${randomUUID()}`;
+    await runsRepo.createRun({
+      orgId: orgA,
+      workflowName: "contentPipeline",
+      temporalWorkflowId,
+      input: sampleInput,
+    });
+
+    const first = await repos.runs.markRunTerminal({
+      orgId: orgA,
+      temporalWorkflowId,
+      status: "failed",
+      error: "boom",
+    });
+    const second = await repos.runs.markRunTerminal({
+      orgId: orgA,
+      temporalWorkflowId,
+      status: "failed",
+      error: "boom",
+    });
+    expect(first?.completedAt).not.toBeNull();
+    expect(second?.completedAt).toEqual(first?.completedAt);
+    // Cross-org write resolves to no row, never another org's run.
+    expect(
+      await repos.runs.markRunTerminal({
+        orgId: orgB,
+        temporalWorkflowId,
+        status: "failed",
+        error: "boom",
+      }),
+    ).toBeUndefined();
   });
 });
 
@@ -156,6 +226,51 @@ describe("activity_log isolation", () => {
     expect(steps).toHaveLength(1);
     expect(steps[0]?.attempt).toBe(2);
     expect(steps[0]?.status).toBe("completed");
+  });
+});
+
+describe("publish_deliveries ledger", () => {
+  it("records a delivery once per (org, key) and returns the original receipt", async () => {
+    const idempotencyKey = `content-${randomUUID()}`;
+    const receipt = { deliveredAt: "2026-06-10T12:00:00.000Z" };
+
+    const first = await repos.publishDeliveries.recordDelivery({
+      orgId: orgA,
+      idempotencyKey,
+      receipt,
+    });
+    const second = await repos.publishDeliveries.recordDelivery({
+      orgId: orgA,
+      idempotencyKey,
+      receipt: { deliveredAt: "2026-06-10T13:00:00.000Z" },
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second.receipt).toEqual(receipt);
+  });
+
+  it("scopes the ledger per org — the same key in two orgs is two deliveries", async () => {
+    const idempotencyKey = `content-${randomUUID()}`;
+    const receipt = { deliveredAt: "2026-06-10T12:00:00.000Z" };
+
+    const a = await repos.publishDeliveries.recordDelivery({
+      orgId: orgA,
+      idempotencyKey,
+      receipt,
+    });
+    const b = await repos.publishDeliveries.recordDelivery({
+      orgId: orgB,
+      idempotencyKey,
+      receipt,
+    });
+    expect(a.id).not.toBe(b.id);
+
+    expect(
+      (await repos.publishDeliveries.findDelivery({ orgId: orgA, idempotencyKey }))?.id,
+    ).toBe(a.id);
+    expect(
+      (await repos.publishDeliveries.findDelivery({ orgId: orgB, idempotencyKey }))?.id,
+    ).toBe(b.id);
   });
 });
 

@@ -14,6 +14,7 @@ import type {
   BlogPostPipelineInput,
   BlogPostPipelineOutput,
   ApprovalContext,
+  PublishReceipt,
 } from "@conductor/shared";
 import { organization } from "./auth";
 
@@ -179,6 +180,29 @@ export const orgApiKeys = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex("org_api_keys_org_uidx").on(t.orgId)],
+);
+
+/**
+ * Publish idempotency ledger (Unit 12) — written by the worker's publish
+ * activity only after a successful delivery and read before delivering, so a
+ * Temporal retry (or a different worker process) returns the cached receipt
+ * instead of delivering twice (architecture invariant 2). Not a projection:
+ * it is a first-class idempotency record, so reading it to dedupe a delivery
+ * does not violate invariant 4.
+ */
+export const publishDeliveries = pgTable(
+  "publish_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    receipt: jsonb("receipt").$type<PublishReceipt>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("publish_deliveries_org_key_uidx").on(t.orgId, t.idempotencyKey),
+    index("publish_deliveries_org_created_idx").on(t.orgId, t.createdAt),
+  ],
 );
 
 export const workflowDefinitionsRelations = relations(workflowDefinitions, ({ many }) => ({

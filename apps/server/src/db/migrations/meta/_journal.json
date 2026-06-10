@@ -15,6 +15,13 @@
       "when": 1781053894716,
       "tag": "0001_easy_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781055805342,
+      "tag": "0002_publish_deliveries",
+      "breakpoints": true
     }
   ]
 }

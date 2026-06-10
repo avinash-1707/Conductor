@@ -15,6 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conductor/db": "workspace:*",
     "@conductor/shared": "workspace:*",
     "@langchain/langgraph": "^1.3.7",
     "@openrouter/ai-sdk-provider": "^2.9.0",
@@ -23,11 +24,13 @@
     "@temporalio/worker": "^1.18.0",
     "@temporalio/workflow": "^1.18.0",
     "ai": "^6.0.199",
+    "pg": "^8.21.0",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@temporalio/testing": "^1.18.0",
+    "@types/pg": "^8.20.0",
     "tsx": "^4.22.4",
     "vitest": "^4.1.8"
   }

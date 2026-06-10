@@ -3,6 +3,7 @@ import {
   condition,
   defineQuery,
   defineSignal,
+  isCancellation,
   log,
   proxyActivities,
   setHandler,
@@ -11,12 +12,13 @@ import {
 import {
   SIGNALS,
   QUERIES,
-  blogPostPipelineInputSchema,
+  contentPipelineInputSchema,
   approvalSignalPayloadSchema,
   type ApprovalSignalPayload,
-  type BlogPostPipelineInput,
+  type ContentPipelineInput,
   type ContentPipelineResult,
   type RunState,
+  type StepKind,
 } from "@conductor/shared";
 // Type-only import: activity implementations must never be bundled into the
 // deterministic workflow sandbox (code-standards Temporal; invariant 1).
@@ -36,9 +38,11 @@ const { research, writeDraft, publish } = proxyActivities<typeof activities>({
   },
 });
 
-// The approval-request activity is a short record-write, never a human wait
-// (invariant 3) — tighter timeout, same backoff.
-const { requestApproval } = proxyActivities<typeof activities>({
+// Short record-writes (approval request + run projections) — never a human
+// wait (invariant 3): tighter timeout, same backoff.
+const { requestApproval, recordRunStarted, recordRunTerminal } = proxyActivities<
+  typeof activities
+>({
   startToCloseTimeout: "10 seconds",
   retry: {
     initialInterval: "1 second",
@@ -54,15 +58,50 @@ export const approvalDecisionSignal = defineSignal<[ApprovalSignalPayload]>(
 export const runStateQuery = defineQuery<RunState>(QUERIES.RUN_STATE);
 
 /**
- * The Phase 1 content pipeline: research → approval gate → write → publish.
+ * Extracts the most specific message from a (possibly Temporal-wrapped)
+ * error: an ActivityFailure's message is the generic "Activity task failed";
+ * the activity's real error lives at the bottom of the `cause` chain.
+ */
+function errorMessage(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  let current: Error = err;
+  while (current.cause instanceof Error) current = current.cause;
+  return current.message;
+}
+
+/**
+ * Best-effort terminal projection write: a run that already delivered (or
+ * gracefully ended) must never fail because a read-side row could not be
+ * updated. Temporal history stays the execution source of truth (invariant 4).
+ */
+async function recordTerminal(
+  input: Parameters<typeof recordRunTerminal>[0],
+): Promise<void> {
+  try {
+    await recordRunTerminal(input);
+  } catch (err) {
+    log.warn("recordRunTerminal projection write failed", {
+      error: errorMessage(err),
+    });
+  }
+}
+
+/** Maps the gate-aware pipeline step to a projection step kind (no `approval`). */
+function toFailedStep(step: RunState["currentStep"]): StepKind | undefined {
+  return step === null || step === "approval" ? undefined : step;
+}
+
+/**
+ * The content pipeline: research → approval gate → write → publish.
  * Deterministic — all clocks, randomness, and I/O live in activities. The
  * gate is a signal handler + condition() with a 24h timer; rejection and
- * expiry are graceful terminal results, not failures.
+ * expiry are graceful terminal results, not failures. Every terminal point
+ * (and the run start) is mirrored into the Postgres projections (Unit 12).
  */
 export async function contentPipeline(
-  input: BlogPostPipelineInput,
+  input: ContentPipelineInput,
 ): Promise<ContentPipelineResult> {
-  const parsedInput = blogPostPipelineInputSchema.safeParse(input);
+  const parsedInput = contentPipelineInputSchema.safeParse(input);
   if (!parsedInput.success) {
     // Invalid input must fail the run immediately — never burn retries on it.
     throw ApplicationFailure.nonRetryable(
@@ -70,7 +109,7 @@ export async function contentPipeline(
       "InvalidWorkflowInput",
     );
   }
-  const { topic, keywords, tone, wordCount, approverId } = parsedInput.data;
+  const { orgId, topic, keywords, tone, wordCount, approverId } = parsedInput.data;
 
   let decision: ApprovalSignalPayload | undefined;
   let state: RunState = { status: "running", currentStep: "research" };
@@ -87,40 +126,66 @@ export async function contentPipeline(
   });
   setHandler(runStateQuery, () => state);
 
-  const findings = await research({ topic, keywords, tone });
+  // Anchor the run projection before any step runs (steps require the row).
+  await recordRunStarted({
+    orgId,
+    workflowName: "contentPipeline",
+    input: { topic, keywords, tone, wordCount, approverId },
+  });
 
-  state = { status: "suspended", currentStep: "approval" };
-  await requestApproval({ approverId, summary: findings.summary });
-  await condition(() => decision !== undefined, APPROVAL_TIMEOUT);
+  try {
+    const findings = await research({ orgId, topic, keywords, tone });
 
-  if (decision === undefined) {
-    state = { status: "expired", currentStep: null };
-    return { status: "expired" };
-  }
-  const verdict = decision;
-  if (verdict.decision === "rejected") {
-    state = { status: "rejected", currentStep: null };
-    return {
-      status: "rejected",
-      reviewerId: verdict.reviewerId,
-      decidedAt: verdict.decidedAt,
-    };
-  }
+    state = { status: "suspended", currentStep: "approval" };
+    await requestApproval({ approverId, summary: findings.summary });
+    await condition(() => decision !== undefined, APPROVAL_TIMEOUT);
 
-  state = { status: "running", currentStep: "write" };
-  const draft = await writeDraft({ topic, keywords, tone, wordCount, findings });
+    if (decision === undefined) {
+      state = { status: "expired", currentStep: null };
+      await recordTerminal({ orgId, status: "expired" });
+      return { status: "expired" };
+    }
+    const verdict = decision;
+    if (verdict.decision === "rejected") {
+      state = { status: "rejected", currentStep: null };
+      await recordTerminal({ orgId, status: "rejected" });
+      return {
+        status: "rejected",
+        reviewerId: verdict.reviewerId,
+        decidedAt: verdict.decidedAt,
+      };
+    }
 
-  state = { status: "running", currentStep: "publish" };
-  // Run-scoped idempotency key so a publish retry delivers exactly once.
-  const receipt = await publish({ draft, idempotencyKey: workflowInfo().workflowId });
+    state = { status: "running", currentStep: "write" };
+    const draft = await writeDraft({ orgId, topic, keywords, tone, wordCount, findings });
 
-  state = { status: "completed", currentStep: null };
-  return {
-    status: "completed",
-    output: {
+    state = { status: "running", currentStep: "publish" };
+    // Run-scoped idempotency key so a publish retry delivers exactly once.
+    const receipt = await publish({
+      orgId,
+      draft,
+      idempotencyKey: workflowInfo().workflowId,
+    });
+
+    const output = {
       draft,
       publishedUrl: receipt.publishedUrl,
       deliveredAt: receipt.deliveredAt,
-    },
-  };
+    };
+    state = { status: "completed", currentStep: null };
+    await recordTerminal({ orgId, status: "completed", output });
+    return { status: "completed", output };
+  } catch (err) {
+    // Cancellation must propagate untouched (Temporal semantics).
+    if (isCancellation(err)) throw err;
+    const failedStep = toFailedStep(state.currentStep);
+    state = { status: "failed", currentStep: state.currentStep };
+    await recordTerminal({
+      orgId,
+      status: "failed",
+      error: errorMessage(err),
+      failedStep,
+    });
+    throw err;
+  }
 }

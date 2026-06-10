@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { fromNodeHeaders } from "better-auth/node";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { db } from "../db/client";
-import { member } from "../db/schema";
+import { member } from "@conductor/db";
 import { ForbiddenError, UnauthorizedError } from "../errors";
 import type { Auth } from "./auth";
 import { createSessionVerifier, type SessionClaims } from "./verify";

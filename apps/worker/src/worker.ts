@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { TASK_QUEUE } from "@conductor/shared";
 import * as activities from "./activities";
+import { pool } from "./db";
 import { env } from "./env";
 import { logger } from "./logger";
 
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
     logger.info("worker shut down cleanly");
   } finally {
     await connection.close();
+    await pool.end();
   }
 }
 

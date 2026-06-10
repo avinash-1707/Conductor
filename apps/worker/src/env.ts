@@ -3,23 +3,32 @@ import { z } from "zod";
 /**
  * Worker process configuration, parsed once at startup (never inside workflow
  * code — architecture invariant 1). Defaults target the Unit 01 docker-compose
- * Temporal so the worker runs with zero local config.
+ * stack so the worker runs with zero local config.
  */
 const envSchema = z.object({
   TEMPORAL_ADDRESS: z.string().min(1).default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().min(1).default("default"),
-  // OpenRouter key for agent LLM calls. Optional in Phase 1 (the worker runs on
-  // a single platform key); Phase 2 (Unit 12) switches to the per-org key
-  // decrypted at activity call time (architecture invariant 12). Activities that
-  // need it fail non-retryably when it is absent — never logged.
-  OPENROUTER_API_KEY: z.string().min(1).optional(),
+  // Projections + org API keys live in Postgres (Unit 12); same local default
+  // as the server.
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .default("postgresql://conductor:conductor@localhost:5432/conductor"),
+  // AES-256-GCM key (base64, 32 bytes) used to DECRYPT per-org OpenRouter keys
+  // at activity call time (invariant 12). Must match the server's key. The
+  // default is clearly dev-only; PRODUCTION MUST override (`openssl rand -base64 32`).
+  PLATFORM_ENCRYPTION_KEY: z
+    .string()
+    .min(1)
+    .default("ZGV2LW9ubHktaW5zZWN1cmUtcGxhdGZvcm0ta2V5ISE="),
   // OpenRouter model slug for the research agent (Unit 05). Writing uses its own
-  // (stronger) model in Unit 06.
+  // (stronger) model in Unit 06. The API key is the org's, resolved per run —
+  // there is no platform OpenRouter key anymore (Unit 12).
   RESEARCH_MODEL: z.string().min(1).default("anthropic/claude-sonnet-4.5"),
   // Stronger model for the writing agent (Unit 06).
   WRITING_MODEL: z.string().min(1).default("anthropic/claude-opus-4.8"),
   // Optional publish target. When set, the publish activity POSTs the draft with
-  // an Idempotency-Key header; when absent it simulates delivery (Phase 1 stub).
+  // an Idempotency-Key header; when absent it simulates delivery.
   PUBLISH_WEBHOOK_URL: z.url().optional(),
 });
 

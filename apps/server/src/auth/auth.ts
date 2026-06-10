@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer, emailOTP, jwt, organization } from "better-auth/plugins";
 import { db } from "../db/client";
-import * as schema from "../db/schema";
+import * as schema from "@conductor/db/schema";
 import { env } from "../env";
 import { logEmailSender, type EmailSender } from "./email";
 

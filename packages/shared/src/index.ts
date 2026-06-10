@@ -5,4 +5,5 @@ export * from "./schemas/status";
 export * from "./schemas/approval";
 export * from "./schemas/events";
 export * from "./schemas/blog-pipeline";
+export * from "./schemas/workflow-inputs";
 export * from "./constants";

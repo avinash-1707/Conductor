@@ -6,19 +6,22 @@ import {
   blogPostPipelineOutputSchema,
   type ApprovalSignalPayload,
   type BlogDraft,
-  type BlogPostPipelineInput,
+  type ContentPipelineInput,
   type ResearchFindings,
 } from "@conductor/shared";
+import type { RecordRunTerminalInput } from "../activities/projections";
 import { approvalDecisionSignal, contentPipeline, runStateQuery } from "./content-pipeline";
 
 /**
  * Time-skipping workflow tests (code-standards Testing): happy path, retry on
- * a failing activity, reject path, and 24h expiry — the expiry uses skipped
- * time, never real time. Activities are mocked per test; the workflow bundle
- * is built once and shared.
+ * a failing activity, reject path, 24h expiry, and the retries-exhausted
+ * failure path — the expiry uses skipped time, never real time. Activities are
+ * mocked per test; the workflow bundle is built once and shared. Terminal
+ * projection recording (Unit 12) is asserted through the recordRunTerminal mock.
  */
 
-const input: BlogPostPipelineInput = {
+const input: ContentPipelineInput = {
+  orgId: "org-1",
   topic: "How durable workflows prevent lost AI runs",
   keywords: ["durable execution", "temporal"],
   tone: "technical",
@@ -46,10 +49,18 @@ interface MockTracker {
   researchAttempts: number;
   writeCalls: number;
   publishCalls: number;
+  runStarted: number;
+  terminal: RecordRunTerminalInput[];
 }
 
 function makeMocks(opts: { researchFailuresBeforeSuccess?: number } = {}) {
-  const tracker: MockTracker = { researchAttempts: 0, writeCalls: 0, publishCalls: 0 };
+  const tracker: MockTracker = {
+    researchAttempts: 0,
+    writeCalls: 0,
+    publishCalls: 0,
+    runStarted: 0,
+    terminal: [],
+  };
   const failures = opts.researchFailuresBeforeSuccess ?? 0;
   const activities = {
     research: async (): Promise<ResearchFindings> => {
@@ -67,6 +78,14 @@ function makeMocks(opts: { researchFailuresBeforeSuccess?: number } = {}) {
     publish: async () => {
       tracker.publishCalls += 1;
       return { deliveredAt: "2026-06-10T12:34:56.000Z" };
+    },
+    recordRunStarted: async () => {
+      tracker.runStarted += 1;
+      return { runId: "0c8e7a1e-1111-4222-8333-444455556666" };
+    },
+    recordRunTerminal: async (terminalInput: RecordRunTerminalInput) => {
+      tracker.terminal.push(terminalInput);
+      return { ok: true as const };
     },
   };
   return { tracker, activities };
@@ -126,6 +145,12 @@ describe("contentPipeline", () => {
     });
     expect(tracker.researchAttempts).toBe(1);
     expect(tracker.publishCalls).toBe(1);
+    expect(tracker.runStarted).toBeGreaterThanOrEqual(1);
+    expect(tracker.terminal).toHaveLength(1);
+    expect(tracker.terminal[0]).toMatchObject({
+      orgId: "org-1",
+      status: "completed",
+    });
   });
 
   it("retries a failing research activity and still completes", async () => {
@@ -144,6 +169,29 @@ describe("contentPipeline", () => {
     });
     expect(tracker.researchAttempts).toBe(3);
     expect(tracker.writeCalls).toBe(1);
+  });
+
+  it("records a failed run when research exhausts its retries", async () => {
+    // 5 = the workflow's maximumAttempts for step activities — never succeeds.
+    const { tracker, activities } = makeMocks({ researchFailuresBeforeSuccess: 99 });
+    const taskQueue = "test-content-failure";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(contentPipeline, {
+        taskQueue,
+        workflowId: "content-failure",
+        args: [input],
+      });
+      await expect(handle.result()).rejects.toThrow();
+    });
+    expect(tracker.researchAttempts).toBe(5);
+    expect(tracker.writeCalls).toBe(0);
+    expect(tracker.terminal).toHaveLength(1);
+    expect(tracker.terminal[0]).toMatchObject({
+      status: "failed",
+      failedStep: "research",
+    });
+    expect(tracker.terminal[0]?.error).toContain("transient mock research failure");
   });
 
   it("ends gracefully as rejected and never writes or publishes", async () => {
@@ -170,6 +218,8 @@ describe("contentPipeline", () => {
     });
     expect(tracker.writeCalls).toBe(0);
     expect(tracker.publishCalls).toBe(0);
+    expect(tracker.terminal).toHaveLength(1);
+    expect(tracker.terminal[0]).toMatchObject({ status: "rejected" });
   });
 
   it("expires after 24h of skipped time with no decision", async () => {
@@ -189,5 +239,7 @@ describe("contentPipeline", () => {
     expect(tracker.researchAttempts).toBe(1);
     expect(tracker.writeCalls).toBe(0);
     expect(tracker.publishCalls).toBe(0);
+    expect(tracker.terminal).toHaveLength(1);
+    expect(tracker.terminal[0]).toMatchObject({ status: "expired" });
   });
 });

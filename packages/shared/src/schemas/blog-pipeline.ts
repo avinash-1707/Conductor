@@ -51,11 +51,21 @@ export const blogDraftSchema = z.object({
 });
 export type BlogDraft = z.infer<typeof blogDraftSchema>;
 
-/** Final pipeline result after publish. */
-export const blogPostPipelineOutputSchema = z.object({
-  draft: blogDraftSchema,
+/**
+ * Receipt the publish step returns and the `publish_deliveries` ledger stores
+ * (JSONB columns always have a shared schema — code-standards "Data and
+ * Storage"). A repeat delivery with the same idempotency key returns the
+ * original receipt unchanged.
+ */
+export const publishReceiptSchema = z.object({
   publishedUrl: z.url().optional(),
   deliveredAt: z.iso.datetime(),
+});
+export type PublishReceipt = z.infer<typeof publishReceiptSchema>;
+
+/** Final pipeline result after publish. */
+export const blogPostPipelineOutputSchema = publishReceiptSchema.extend({
+  draft: blogDraftSchema,
 });
 export type BlogPostPipelineOutput = z.infer<typeof blogPostPipelineOutputSchema>;
 

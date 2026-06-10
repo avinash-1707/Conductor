@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApplicationFailure } from "@temporalio/activity";
 import { researchFindingsSchema } from "@conductor/shared";
 import {
   buildResearchGraph,
@@ -86,34 +85,6 @@ describe("research graph", () => {
   });
 });
 
-// Activity failure branches. Mock env so the missing-key path is deterministic
-// regardless of the shell, and so no real OpenRouter call is ever attempted.
-vi.mock("../../env", () => ({
-  env: { OPENROUTER_API_KEY: undefined, RESEARCH_MODEL: "anthropic/claude-sonnet-4.5" },
-}));
-
-describe("research activity", () => {
-  it("throws non-retryably on invalid input", async () => {
-    const { research } = await import("../content-pipeline");
-    try {
-      await research({ topic: "", keywords: [], tone: "technical" });
-      expect.unreachable("should have thrown");
-    } catch (err) {
-      expect(err).toBeInstanceOf(ApplicationFailure);
-      expect((err as ApplicationFailure).type).toBe("InvalidResearchInput");
-      expect((err as ApplicationFailure).nonRetryable).toBe(true);
-    }
-  });
-
-  it("throws non-retryably when the OpenRouter key is absent", async () => {
-    const { research } = await import("../content-pipeline");
-    try {
-      await research({ topic: "Topic", keywords: ["k"], tone: "technical" });
-      expect.unreachable("should have thrown");
-    } catch (err) {
-      expect(err).toBeInstanceOf(ApplicationFailure);
-      expect((err as ApplicationFailure).type).toBe("MissingOpenRouterKey");
-      expect((err as ApplicationFailure).nonRetryable).toBe(true);
-    }
-  });
-});
+// Activity-level failure branches (invalid input, missing/undecryptable org
+// key) are covered in ../content-pipeline.test.ts — since Unit 12 the
+// activity needs an activity Context and mocked repos, which live there.

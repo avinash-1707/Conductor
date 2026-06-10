@@ -4,11 +4,13 @@
 # recover and complete (success criterion #2 / sales asset #1).
 #
 # Prereqs: infra up (docker compose -f infra/docker-compose.yml up -d),
-# dependencies installed (pnpm install), and OPENROUTER_API_KEY exported
-# (research is a real LLM call). Tunable: TOPIC, KILL_DELAY, RESTART_DELAY.
+# dependencies installed (pnpm install), migrations applied, and an org with an
+# OpenRouter API key configured (Unit 12: runs execute on the org's decrypted
+# key — sign up on the server, create an org, PUT /orgs/api-key). Export the
+# org id as CONDUCTOR_ORG_ID. Tunable: TOPIC, KILL_DELAY, RESTART_DELAY.
 #
 # Usage:
-#   OPENROUTER_API_KEY=sk-or-... ./scripts/demo-reliability.sh
+#   CONDUCTOR_ORG_ID=org_... ./scripts/demo-reliability.sh
 #
 set -euo pipefail
 
@@ -30,7 +32,7 @@ log() { printf '\n\033[1;35m[demo]\033[0m %s\n' "$*"; }
 
 # --- preflight ---------------------------------------------------------------
 command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required"; exit 1; }
-: "${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY before running the demo (research is a real LLM call)}"
+: "${CONDUCTOR_ORG_ID:?Set CONDUCTOR_ORG_ID to an org with an OpenRouter key configured (runs execute on the org's key since Unit 12)}"
 host="${TEMPORAL_ADDRESS%:*}"; port="${TEMPORAL_ADDRESS##*:}"
 if ! (exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null; then
   echo "Temporal not reachable at ${TEMPORAL_ADDRESS}."

@@ -10,7 +10,7 @@ import {
   stepStatusEnum,
   stepKindEnum,
   approvalStatusEnum,
-} from "./domain";
+} from "@conductor/db";
 
 /**
  * The Postgres enum tuples are inlined in domain.ts (so drizzle-kit needs no
