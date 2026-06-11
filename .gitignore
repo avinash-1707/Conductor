@@ -38,6 +38,7 @@ drizzle/.snapshot/
 .env
 .env.*
 !.env.example
+infra/prod.env
 
 # --- Logs ---
 *.log

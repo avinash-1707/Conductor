@@ -1,0 +1,143 @@
+# Conductor self-host / single-VPS reference topology (Unit 28a).
+# Co-hosts the three app images with Postgres, Redis, and Temporal OSS —
+# the committed self-host story's packaging seed (architecture invariant 13)
+# and the deploy artifact if the hosted target is a VPS. PaaS targets use the
+# root Dockerfiles directly instead.
+#
+#   1. cp infra/prod.env.example infra/prod.env   # then fill in real secrets
+#   2. docker compose -f infra/docker-compose.prod.yml --env-file infra/prod.env up -d --build
+#   3. Release step (first boot + every deploy with new migrations):
+#      docker compose -f infra/docker-compose.prod.yml --env-file infra/prod.env \
+#        run --rm server pnpm --filter @conductor/server migrate
+#
+# TLS/domain termination (reverse proxy in front of web :3000 and server :4000)
+# is host-specific — Unit 28b.
+name: conductor-prod
+
+services:
+  postgresql:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: conductor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in infra/prod.env}
+      POSTGRES_DB: conductor
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conductor -d conductor"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  temporal:
+    image: temporalio/auto-setup:1.29
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: conductor
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:?set in infra/prod.env}
+      POSTGRES_SEEDS: postgresql
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "temporal:7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Temporal Web UI — operator-only; keep it off the public internet (bind to
+  # localhost or put it behind auth at the proxy). Enable with --profile ops.
+  temporal-ui:
+    image: temporalio/ui:2.51.0
+    restart: unless-stopped
+    profiles: ["ops"]
+    depends_on:
+      temporal:
+        condition: service_started
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  server:
+    build:
+      context: ..
+      dockerfile: Dockerfile.server
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://conductor:${POSTGRES_PASSWORD}@postgresql:5432/conductor
+      REDIS_URL: redis://redis:6379
+      TEMPORAL_ADDRESS: temporal:7233
+      WEB_ORIGIN: ${WEB_ORIGIN:?set in infra/prod.env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set in infra/prod.env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set in infra/prod.env}
+      PLATFORM_ENCRYPTION_KEY: ${PLATFORM_ENCRYPTION_KEY:?set in infra/prod.env}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://conductor:${POSTGRES_PASSWORD}@postgresql:5432/conductor
+      REDIS_URL: redis://redis:6379
+      TEMPORAL_ADDRESS: temporal:7233
+      PLATFORM_ENCRYPTION_KEY: ${PLATFORM_ENCRYPTION_KEY:?set in infra/prod.env}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:4001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile.web
+      args:
+        # Inlined into the client bundle at BUILD time — the public API URL.
+        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?set in infra/prod.env}
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

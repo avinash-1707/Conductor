@@ -1,0 +1,32 @@
+# Conductor Temporal worker (Unit 28a).
+# Runs TypeScript source via tsx; the workflow bundle is compiled at boot from
+# workflows/*.ts (a sandbox violation still surfaces at startup, same as dev).
+# Debian base — Temporal's core-bridge ships prebuilt glibc binaries.
+# Build from the REPO ROOT: docker build -f Dockerfile.worker -t conductor-worker .
+FROM node:22-slim AS app
+
+# World-readable corepack cache so the runtime (non-root) user can run the
+# pnpm version pinned by package.json#packageManager without a network fetch.
+ENV COREPACK_HOME=/corepack
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+RUN corepack install
+COPY apps/worker/package.json apps/worker/
+COPY packages/shared/package.json packages/shared/
+COPY packages/db/package.json packages/db/
+
+RUN pnpm install --frozen-lockfile --filter @conductor/worker...
+
+COPY packages/shared packages/shared
+COPY packages/db packages/db
+COPY apps/worker apps/worker
+
+ENV NODE_ENV=production
+# Health surface (GET /health, /ready) — WORKER_HEALTH_PORT.
+EXPOSE 4001
+USER node
+
+CMD ["pnpm", "--filter", "@conductor/worker", "start"]

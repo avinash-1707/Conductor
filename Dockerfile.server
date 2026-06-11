@@ -1,0 +1,35 @@
+# Conductor API server (Unit 28a).
+# Runs TypeScript source via tsx — the monorepo's no-emit module strategy
+# (code-standards "Modules"); internal packages export TS source, so the image
+# carries the workspace with its dev toolchain rather than a bundle.
+# Build from the REPO ROOT: docker build -f Dockerfile.server -t conductor-server .
+FROM node:22-slim AS app
+
+# World-readable corepack cache so the runtime (non-root) user can run the
+# pnpm version pinned by package.json#packageManager without a network fetch.
+ENV COREPACK_HOME=/corepack
+RUN corepack enable
+
+WORKDIR /app
+
+# Manifests first — dependency layers cache until a manifest changes.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+RUN corepack install
+COPY apps/server/package.json apps/server/
+COPY packages/shared/package.json packages/shared/
+COPY packages/db/package.json packages/db/
+
+# The server and its workspace dependencies only.
+RUN pnpm install --frozen-lockfile --filter @conductor/server...
+
+COPY packages/shared packages/shared
+COPY packages/db packages/db
+COPY apps/server apps/server
+
+ENV NODE_ENV=production
+EXPOSE 4000
+USER node
+
+# Migrations run as the release step, from this same image:
+#   pnpm --filter @conductor/server migrate
+CMD ["pnpm", "--filter", "@conductor/server", "start"]

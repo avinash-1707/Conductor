@@ -1,0 +1,94 @@
+# Conductor CI (Unit 28a) — the root gate plus the stack E2E (the Unit 23
+# deferred "golden-path E2E green in CI"). One job so the service containers
+# and the pnpm install are paid for once.
+#
+# The Playwright SNAPSHOT spec (runs-dashboard) is deliberately not run here:
+# its committed pixel baseline is machine-specific (font rasterization), so it
+# stays an operator-run check.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate-and-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: conductor
+          POSTGRES_PASSWORD: conductor
+          POSTGRES_DB: conductor
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U conductor -d conductor"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      temporal:
+        image: temporalio/auto-setup:1.29
+        env:
+          DB: postgres12
+          DB_PORT: "5432"
+          POSTGRES_USER: conductor
+          POSTGRES_PWD: conductor
+          POSTGRES_SEEDS: postgres
+        ports: ["7233:7233"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack (pnpm pinned by packageManager)
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm --filter @conductor/server migrate
+
+      - name: Root gate (build · typecheck · lint · test)
+        run: pnpm build && pnpm typecheck && pnpm lint && pnpm test
+
+      - name: Install chromium
+        run: pnpm --filter @conductor/web exec playwright install --with-deps chromium
+
+      - name: Wait for Temporal
+        run: |
+          for i in $(seq 1 60); do
+            (echo > /dev/tcp/localhost/7233) 2>/dev/null && exit 0
+            sleep 2
+          done
+          echo "Temporal never became reachable" >&2
+          exit 1
+
+      - name: Stack E2E (golden path + invite)
+        run: pnpm --filter @conductor/web exec playwright test e2e/golden-path.spec.ts e2e/invite-member.spec.ts
+        env:
+          CI: "true"
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: apps/web/test-results
+          retention-days: 7

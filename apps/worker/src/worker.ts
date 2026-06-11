@@ -3,6 +3,7 @@ import { NativeConnection, Worker } from "@temporalio/worker";
 import * as activities from "./activities";
 import { pool } from "./db";
 import { env } from "./env";
+import { startHealthServer } from "./health";
 import { logger } from "./logger";
 import { closeRealtime } from "./realtime/publisher";
 
@@ -20,6 +21,7 @@ async function main(): Promise<void> {
     );
   }
   const connection = await NativeConnection.connect({ address: env.TEMPORAL_ADDRESS });
+  let health: ReturnType<typeof startHealthServer> | undefined;
   try {
     const worker = await Worker.create({
       connection,
@@ -27,6 +29,23 @@ async function main(): Promise<void> {
       taskQueue: env.TEMPORAL_TASK_QUEUE,
       workflowsPath: fileURLToPath(new URL("./workflows/index.ts", import.meta.url)),
       activities,
+    });
+
+    // Platform health surface (Unit 28a): readiness = worker RUNNING + PG
+    // answering. Started only once the worker exists, so /ready can never
+    // report ready before the bundle compiled and Temporal accepted us.
+    health = startHealthServer({
+      port: env.WORKER_HEALTH_PORT,
+      checks: {
+        temporal: () => worker.getState() === "RUNNING",
+        postgres: async () => {
+          const probe = await Promise.race([
+            pool.query("select 1").then(() => true),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2_000)),
+          ]);
+          return probe;
+        },
+      },
     });
 
     logger.info(
@@ -41,6 +60,7 @@ async function main(): Promise<void> {
     await worker.run();
     logger.info("worker shut down cleanly");
   } finally {
+    health?.close();
     await connection.close();
     await closeRealtime();
     await pool.end();
