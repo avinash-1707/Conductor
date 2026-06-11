@@ -44,6 +44,12 @@ vi.mock("../db", () => ({
   },
 }));
 
+// Org model resolution (Unit 33) has its own test file; here it is a seam the
+// activities consume — defaulted to the platform models in beforeEach.
+vi.mock("./org-models", () => ({
+  resolveOrgModels: vi.fn(),
+}));
+
 vi.mock("./agents/research", () => ({
   createOpenRouterResearchLLM: vi.fn(() => ({ kind: "research-llm" })),
   runResearch: vi.fn(),
@@ -54,6 +60,7 @@ vi.mock("./agents/writing", () => ({
 }));
 
 import { repos } from "../db";
+import { resolveOrgModels } from "./org-models";
 import { createOpenRouterResearchLLM, runResearch } from "./agents/research";
 import { createOpenRouterWritingLLM, runWriting } from "./agents/writing";
 import {
@@ -127,6 +134,10 @@ beforeEach(() => {
   vi.mocked(repos.activityLog.failStepAttempt).mockResolvedValue(undefined);
   vi.mocked(runResearch).mockResolvedValue(FINDINGS);
   vi.mocked(runWriting).mockResolvedValue(DRAFT);
+  vi.mocked(resolveOrgModels).mockResolvedValue({
+    researchModel: "anthropic/claude-sonnet-4.5",
+    writingModel: "anthropic/claude-opus-4.8",
+  });
 });
 
 describe("research activity (org key)", () => {
@@ -153,6 +164,30 @@ describe("research activity (org key)", () => {
       { topic: "Topic", keywords: ["k"], tone: "technical" },
       { kind: "research-llm" },
     );
+  });
+
+  it("builds the LLM from the org's chosen model when one is set (Unit 33)", async () => {
+    const ciphertext = encryptSecret(ORG_KEY, parseEncryptionKey(DEV_PLATFORM_KEY));
+    vi.mocked(repos.apiKeys.findOrgApiKey).mockResolvedValue(orgKeyRow(ciphertext));
+    vi.mocked(resolveOrgModels).mockResolvedValue({
+      researchModel: "google/gemini-3.5-flash",
+      writingModel: "openai/gpt-5.5",
+    });
+
+    const researchArg: ResearchInput = {
+      orgId: "org-1",
+      topic: "Topic",
+      keywords: ["k"],
+      tone: "technical",
+    };
+    await activityEnv().run(research, researchArg);
+
+    expect(resolveOrgModels).toHaveBeenCalledWith("org-1");
+    expect(createOpenRouterResearchLLM).toHaveBeenCalledWith({
+      apiKey: ORG_KEY,
+      model: "google/gemini-3.5-flash",
+      onDelta: expect.any(Function),
+    });
   });
 
   it("fails non-retryably when the org has no key configured", async () => {
@@ -227,6 +262,31 @@ describe("writeDraft activity", () => {
     expect(createOpenRouterWritingLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "anthropic/claude-opus-4.8",
+      onDelta: expect.any(Function),
+    });
+  });
+
+  it("writes with the org's chosen writing model when one is set (Unit 33)", async () => {
+    const ciphertext = encryptSecret(ORG_KEY, parseEncryptionKey(DEV_PLATFORM_KEY));
+    vi.mocked(repos.apiKeys.findOrgApiKey).mockResolvedValue(orgKeyRow(ciphertext));
+    vi.mocked(resolveOrgModels).mockResolvedValue({
+      researchModel: "anthropic/claude-sonnet-4.5",
+      writingModel: "openai/gpt-5.5-pro",
+    });
+
+    const writeArg: WriteDraftInput = {
+      orgId: "org-1",
+      topic: "Topic",
+      keywords: ["k"],
+      tone: "technical",
+      wordCount: 800,
+      findings: FINDINGS,
+    };
+    await activityEnv().run(writeDraft, writeArg);
+
+    expect(createOpenRouterWritingLLM).toHaveBeenCalledWith({
+      apiKey: ORG_KEY,
+      model: "openai/gpt-5.5-pro",
       onDelta: expect.any(Function),
     });
   });

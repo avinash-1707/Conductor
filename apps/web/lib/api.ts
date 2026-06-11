@@ -4,13 +4,19 @@ import {
   approvalListResponseSchema,
   approvalResourceSchema,
   launchRunRequestSchema,
+  modelCatalogResponseSchema,
+  orgModelSettingsResponseSchema,
   runDetailResponseSchema,
   runListResponseSchema,
   runSchema,
   templateListResponseSchema,
+  updateOrgModelSettingsSchema,
   type ApprovalListResponse,
   type ApprovalResource,
   type LaunchRunRequest,
+  type ModelCatalogResponse,
+  type OrgModelSettings,
+  type OrgModelSettingsResponse,
   type RunDetailResponse,
   type RunListResponse,
   type RunResource,
@@ -127,6 +133,22 @@ export const api = {
       apiFetch(`/approvals/${id}/reject`, {
         method: "POST",
         schema: approvalResourceSchema,
+      }),
+  },
+  models: {
+    /** Curated OpenRouter catalog behind the Settings model picker. */
+    catalog: (): Promise<ModelCatalogResponse> =>
+      apiFetch(`/orgs/models`, { schema: modelCatalogResponseSchema }),
+  },
+  orgModelSettings: {
+    get: (): Promise<OrgModelSettingsResponse> =>
+      apiFetch(`/orgs/model-settings`, { schema: orgModelSettingsResponseSchema }),
+    /** Owner-only full replace; null = platform default. */
+    set: (settings: OrgModelSettings): Promise<OrgModelSettingsResponse> =>
+      apiFetch(`/orgs/model-settings`, {
+        method: "PUT",
+        body: updateOrgModelSettingsSchema.parse(settings),
+        schema: orgModelSettingsResponseSchema,
       }),
   },
   orgApiKey: {

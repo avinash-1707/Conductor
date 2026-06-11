@@ -29,6 +29,17 @@ describe("parseEnv production guards", () => {
     ).toThrow(/PLATFORM_ENCRYPTION_KEY is the dev default/);
   });
 
+  it("refuses KEY_VERIFICATION=off in production (Unit 33)", () => {
+    expect(() =>
+      parseEnv({
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: realSecret,
+        PLATFORM_ENCRYPTION_KEY: realKey,
+        KEY_VERIFICATION: "off",
+      }),
+    ).toThrow(/KEY_VERIFICATION=off is an E2E\/dev facility/);
+  });
+
   it("boots in production once both secrets are real", () => {
     const env = parseEnv({
       NODE_ENV: "production",

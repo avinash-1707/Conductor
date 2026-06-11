@@ -4,6 +4,7 @@ import { createActivityLogRepo } from "./activity-log";
 import { createApprovalsRepo } from "./approvals";
 import { createDefinitionsRepo } from "./definitions";
 import { createApiKeysRepo } from "./api-keys";
+import { createModelSettingsRepo } from "./model-settings";
 import { createPublishDeliveriesRepo } from "./publish-deliveries";
 
 /**
@@ -18,6 +19,7 @@ export function createRepos(db: Db) {
     approvals: createApprovalsRepo(db),
     definitions: createDefinitionsRepo(db),
     apiKeys: createApiKeysRepo(db),
+    modelSettings: createModelSettingsRepo(db),
     publishDeliveries: createPublishDeliveriesRepo(db),
   };
 }
@@ -45,6 +47,11 @@ export {
   type NewDefinition,
 } from "./definitions";
 export { createApiKeysRepo, type ApiKeysRepo, type OrgApiKey } from "./api-keys";
+export {
+  createModelSettingsRepo,
+  type ModelSettingsRepo,
+  type OrgModelSettingsRow,
+} from "./model-settings";
 export {
   createPublishDeliveriesRepo,
   type PublishDeliveriesRepo,

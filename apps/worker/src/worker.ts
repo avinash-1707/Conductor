@@ -6,6 +6,7 @@ import { env } from "./env";
 import { startHealthServer } from "./health";
 import { logger } from "./logger";
 import { closeRealtime } from "./realtime/publisher";
+import { closeOrgModelsCache } from "./activities/org-models";
 
 /**
  * Worker bootstrap. Connects to Temporal, bundles the deterministic workflows
@@ -63,6 +64,7 @@ async function main(): Promise<void> {
     health?.close();
     await connection.close();
     await closeRealtime();
+    await closeOrgModelsCache();
     await pool.end();
   }
 }

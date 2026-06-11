@@ -45,6 +45,11 @@ const envSchema = z
     // OpenRouter API keys at rest (Unit 11). Dev-only default; production
     // boots refuse it — generate with `openssl rand -base64 32`.
     PLATFORM_ENCRYPTION_KEY: z.string().min(1).default(DEV_PLATFORM_ENCRYPTION_KEY),
+
+    // "off" skips the live OpenRouter check on PUT /orgs/api-key (Unit 33) —
+    // an E2E/dev facility like the worker's LLM_MODE=mock (the golden-path E2E
+    // stores a stub key). Refused in production.
+    KEY_VERIFICATION: z.enum(["live", "off"]).default("live"),
   })
   .superRefine((value, ctx) => {
     // Production must never run on the baked-in dev secrets (Unit 28a).
@@ -63,6 +68,14 @@ const envSchema = z
         message:
           "PLATFORM_ENCRYPTION_KEY is the dev default — set a real key in production (openssl rand -base64 32)",
         path: ["PLATFORM_ENCRYPTION_KEY"],
+      });
+    }
+    if (value.KEY_VERIFICATION === "off") {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "KEY_VERIFICATION=off is an E2E/dev facility — never run it in production",
+        path: ["KEY_VERIFICATION"],
       });
     }
   });

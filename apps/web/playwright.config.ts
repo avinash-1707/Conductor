@@ -51,6 +51,9 @@ export default defineConfig({
         WEB_ORIGIN: `http://localhost:${PORT}`,
         BETTER_AUTH_URL: `http://localhost:${SERVER_PORT}`,
         TEMPORAL_TASK_QUEUE: E2E_TASK_QUEUE,
+        // The golden path stores a stub OpenRouter key — skip the Unit 33
+        // live verification (the dev/E2E facility, refused in production).
+        KEY_VERIFICATION: "off",
       },
     },
   ],

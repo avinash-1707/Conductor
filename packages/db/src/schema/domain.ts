@@ -204,6 +204,24 @@ export const orgApiKeys = pgTable(
 );
 
 /**
+ * Per-org model choice for the agent steps (Unit 33). One row per org;
+ * a null column means "use the platform default" (shared constants). Read by
+ * the worker at activity call time — live config, never run-pinned.
+ */
+export const orgModelSettings = pgTable(
+  "org_model_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    researchModel: text("research_model"),
+    writingModel: text("writing_model"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("org_model_settings_org_uidx").on(t.orgId)],
+);
+
+/**
  * Publish idempotency ledger (Unit 12) — written by the worker's publish
  * activity only after a successful delivery and read before delivering, so a
  * Temporal retry (or a different worker process) returns the cached receipt

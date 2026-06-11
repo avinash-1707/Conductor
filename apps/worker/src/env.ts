@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { TASK_QUEUE } from "@conductor/shared";
+import {
+  DEFAULT_RESEARCH_MODEL,
+  DEFAULT_WRITING_MODEL,
+  TASK_QUEUE,
+} from "@conductor/shared";
 
 /**
  * Worker process configuration, parsed once at startup (never inside workflow
@@ -33,12 +37,12 @@ const envSchema = z
     // at activity call time (invariant 12). Must match the server's key. The
     // default is clearly dev-only; production boots refuse it.
     PLATFORM_ENCRYPTION_KEY: z.string().min(1).default(DEV_PLATFORM_ENCRYPTION_KEY),
-    // OpenRouter model slug for the research agent (Unit 05). Writing uses its own
-    // (stronger) model in Unit 06. The API key is the org's, resolved per run —
-    // there is no platform OpenRouter key anymore (Unit 12).
-    RESEARCH_MODEL: z.string().min(1).default("anthropic/claude-sonnet-4.5"),
-    // Stronger model for the writing agent (Unit 06).
-    WRITING_MODEL: z.string().min(1).default("anthropic/claude-opus-4.8"),
+    // Platform-default OpenRouter model slugs (Units 05/06; shared constants
+    // since Unit 33). An org's own choice in `org_model_settings` wins — these
+    // are the fallback. The API key is the org's, resolved per run — there is
+    // no platform OpenRouter key anymore (Unit 12).
+    RESEARCH_MODEL: z.string().min(1).default(DEFAULT_RESEARCH_MODEL),
+    WRITING_MODEL: z.string().min(1).default(DEFAULT_WRITING_MODEL),
     // "mock" swaps the OpenRouter-backed LLMs for deterministic canned ones
     // (Unit 23 — the golden-path E2E's stubbed model). Streaming, projections,
     // approvals, and the org-key path all stay real. Refused in production.

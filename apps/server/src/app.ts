@@ -6,6 +6,10 @@ import { env } from "./env";
 import { AppError } from "./errors";
 import { healthRoutes } from "./routes/health";
 import { apiKeyRoutes } from "./routes/api-keys";
+import { modelSettingsRoutes } from "./routes/model-settings";
+import type { KeyVerification } from "./lib/openrouter";
+import type { ModelOption } from "@conductor/shared";
+import { closeCache } from "./cache";
 import { runRoutes } from "./routes/runs";
 import { approvalRoutes } from "./routes/approvals";
 import { templateRoutes } from "./routes/templates";
@@ -32,6 +36,10 @@ export async function buildApp(opts: {
   realtime?: boolean;
   /** Optional pino destination — tests pass a capturing stream to assert logs. */
   logStream?: DestinationStream;
+  /** Test seam — BYOK verification stub (Unit 33); defaults to the live OpenRouter check. */
+  verifyKey?: (apiKey: string) => Promise<KeyVerification>;
+  /** Test seam — model catalog stub (Unit 33); defaults to the cached OpenRouter fetcher. */
+  modelCatalog?: () => Promise<ModelOption[]>;
 }): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
@@ -94,7 +102,10 @@ export async function buildApp(opts: {
 
   if (opts.auth) {
     await registerAuth(app, { auth: opts.auth });
-    await app.register(apiKeyRoutes);
+    await app.register(apiKeyRoutes({ verifyKey: opts.verifyKey }));
+    await app.register(
+      modelSettingsRoutes(opts.modelCatalog ? { catalog: opts.modelCatalog } : undefined),
+    );
     await app.register(templateRoutes());
     if (opts.temporal) {
       await app.register(runRoutes(opts.temporal));
@@ -112,6 +123,8 @@ export async function buildApp(opts: {
       app.addHook("onClose", () => realtime.close());
     }
   }
+
+  app.addHook("onClose", () => closeCache());
 
   return app;
 }

@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { buildApp } from "../app";
 import { auth } from "../auth/auth";
 import { decryptApiKey, encryptApiKey } from "../secrets";
+import type { KeyVerification } from "../lib/openrouter";
 
 /**
  * Integration tests for org API-key management (Unit 11). Exercises the real
@@ -19,12 +20,16 @@ const checks = {
 
 let app: FastifyInstance;
 const logs: string[] = [];
+// Injected BYOK verification stub (Unit 33) — individual tests flip it; the
+// default keeps every pre-existing test on the happy path with no network.
+let verification: KeyVerification = "valid";
 
 beforeAll(async () => {
   app = await buildApp({
     checks,
     auth,
     logStream: { write: (msg: string) => logs.push(msg) },
+    verifyKey: async () => verification,
   });
   await app.ready();
 });
@@ -141,6 +146,55 @@ describe("PUT /orgs/api-key", () => {
       payload: { apiKey: "short" },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects a key OpenRouter says is invalid and stores nothing (Unit 33)", async () => {
+    const jwt = await signUpOwner();
+    verification = "invalid";
+    try {
+      const res = await app.inject({
+        method: "PUT",
+        url: "/orgs/api-key",
+        headers: { authorization: `Bearer ${jwt}` },
+        payload: { apiKey: `sk-or-v1-${randomUUID().replace(/-/g, "")}` },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { error: { code: string } }).error.code).toBe(
+        "invalid_api_key",
+      );
+
+      const after = await app.inject({
+        method: "GET",
+        url: "/orgs/api-key",
+        headers: { authorization: `Bearer ${jwt}` },
+      });
+      expect(after.json()).toEqual({ configured: false, last4: null });
+    } finally {
+      verification = "valid";
+    }
+  });
+
+  it("fails open when OpenRouter is unreachable: stores the key and warns (Unit 33)", async () => {
+    const jwt = await signUpOwner();
+    verification = "unavailable";
+    try {
+      const apiKey = `sk-or-v1-${randomUUID().replace(/-/g, "")}`;
+      logs.length = 0;
+      const res = await app.inject({
+        method: "PUT",
+        url: "/orgs/api-key",
+        headers: { authorization: `Bearer ${jwt}` },
+        payload: { apiKey },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json()).toEqual({ ok: true, last4: apiKey.slice(-4) });
+      await new Promise((resolve) => setImmediate(resolve));
+      const joined = logs.join("");
+      expect(joined).toContain("api_key.verification_unavailable");
+      expect(joined).not.toContain(apiKey);
+    } finally {
+      verification = "valid";
+    }
   });
 });
 

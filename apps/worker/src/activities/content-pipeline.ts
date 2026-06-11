@@ -16,6 +16,7 @@ import { createOpenRouterResearchLLM, runResearch } from "./agents/research";
 import { createOpenRouterWritingLLM, runWriting } from "./agents/writing";
 import { withStepTracking } from "./with-step-tracking";
 import { resolveOrgApiKey } from "./org-keys";
+import { resolveOrgModels } from "./org-models";
 
 /**
  * Content-pipeline step activities. Each is a single Zod-validated input
@@ -40,9 +41,12 @@ export const research = withStepTracking(
   async (input: ResearchInput, ctx): Promise<ResearchFindings> => {
     const { orgId, topic, keywords, tone } = input;
     const apiKey = await resolveOrgApiKey(orgId);
+    // The org's chosen model (Settings → Models), platform default otherwise —
+    // resolved at call time through the 10-minute Redis cache (Unit 33).
+    const { researchModel } = await resolveOrgModels(orgId);
 
     logger.info(
-      { activity: "research", orgId, topic, model: env.RESEARCH_MODEL },
+      { activity: "research", orgId, topic, model: researchModel },
       "research agent running",
     );
     // Stream the synthesized summary token-by-token to the dashboard (Unit 20).
@@ -53,7 +57,7 @@ export const research = withStepTracking(
         ? createMockResearchLLM({ onDelta: ctx.emitToken })
         : createOpenRouterResearchLLM({
             apiKey,
-            model: env.RESEARCH_MODEL,
+            model: researchModel,
             onDelta: ctx.emitToken,
           });
     return runResearch({ topic, keywords, tone }, llm);
@@ -76,9 +80,11 @@ export const writeDraft = withStepTracking(
   async (input: WriteDraftInput, ctx): Promise<BlogDraft> => {
     const { orgId, topic, keywords, findings, tone, wordCount } = input;
     const apiKey = await resolveOrgApiKey(orgId);
+    // Org choice over platform default, same resolution as research (Unit 33).
+    const { writingModel } = await resolveOrgModels(orgId);
 
     logger.info(
-      { activity: "writeDraft", orgId, topic, model: env.WRITING_MODEL },
+      { activity: "writeDraft", orgId, topic, model: writingModel },
       "writing agent running",
     );
     // Stream the draft markdown token-by-token to the dashboard (Unit 20).
@@ -87,7 +93,7 @@ export const writeDraft = withStepTracking(
         ? createMockWritingLLM({ onDelta: ctx.emitToken })
         : createOpenRouterWritingLLM({
             apiKey,
-            model: env.WRITING_MODEL,
+            model: writingModel,
             onDelta: ctx.emitToken,
           });
     return runWriting({ topic, keywords, tone, wordCount, findings }, llm);

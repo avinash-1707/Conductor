@@ -2,12 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, KeyRound, Link as LinkIcon, Users, X } from "lucide-react";
+import { Building2, Cpu, KeyRound, Link as LinkIcon, Users, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { authClient, organization, useSession } from "@/lib/auth-client";
-import { Button, Card, Field, Input, Spinner } from "@/components/app/ui";
+import { Button, Card, Field, Spinner, Input } from "@/components/app/ui";
 import { Skeleton, ErrorState } from "@/components/app/view-state";
 import { useToast } from "@/components/app/toast";
+import { ModelSelect } from "@/components/app/model-select";
 
 /**
  * Org settings (completed in Unit 27): org profile, members with roles and
@@ -191,6 +192,119 @@ function ApiKeyCard({ isOwner }: { isOwner: boolean }) {
             </div>
           </form>
         </>
+      )}
+    </Card>
+  );
+}
+
+export const MODEL_CATALOG_QUERY_KEY = ["model-catalog"] as const;
+export const ORG_MODEL_SETTINGS_QUERY_KEY = ["org-model-settings"] as const;
+
+function ModelsCard({ isOwner }: { isOwner: boolean }) {
+  const client = useQueryClient();
+  const { toast } = useToast();
+  // undefined = untouched (render the stored value); null/string = a pending edit.
+  const [researchDraft, setResearchDraft] = useState<string | null | undefined>(undefined);
+  const [writingDraft, setWritingDraft] = useState<string | null | undefined>(undefined);
+
+  const catalog = useQuery({
+    queryKey: MODEL_CATALOG_QUERY_KEY,
+    queryFn: api.models.catalog,
+    staleTime: 10 * 60 * 1000,
+  });
+  const settings = useQuery({
+    queryKey: ORG_MODEL_SETTINGS_QUERY_KEY,
+    queryFn: api.orgModelSettings.get,
+  });
+
+  const save = useMutation({
+    mutationFn: api.orgModelSettings.set,
+    onSuccess: () => {
+      setResearchDraft(undefined);
+      setWritingDraft(undefined);
+      toast("Saved");
+      void client.invalidateQueries({ queryKey: ORG_MODEL_SETTINGS_QUERY_KEY });
+    },
+    onError: (err) => {
+      toast(
+        err instanceof ApiError && err.status === 403
+          ? "Only an owner can change models."
+          : "The models could not be saved. Try again.",
+        "error",
+      );
+    },
+  });
+
+  const loading = catalog.isPending || settings.isPending;
+  const failed = catalog.isError || settings.isError;
+
+  const stored = settings.data?.settings;
+  const researchValue = researchDraft !== undefined ? researchDraft : (stored?.researchModel ?? null);
+  const writingValue = writingDraft !== undefined ? writingDraft : (stored?.writingModel ?? null);
+  const dirty =
+    stored !== undefined &&
+    (researchValue !== stored.researchModel || writingValue !== stored.writingModel);
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (dirty) save.mutate({ researchModel: researchValue, writingModel: writingValue });
+  }
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <SectionTitle
+        icon={Cpu}
+        title="Models"
+        hint="Which models your pipelines think and write with — billed to your own key. Starred models are paid."
+      />
+
+      {loading && <Skeleton className="h-24 w-full" />}
+      {!loading && failed && (
+        <ErrorState
+          message="We couldn't load the model list."
+          onRetry={() => {
+            void catalog.refetch();
+            void settings.refetch();
+          }}
+        />
+      )}
+      {!loading && !failed && catalog.data && settings.data && (
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Research model" htmlFor="research-model">
+              <ModelSelect
+                id="research-model"
+                value={researchValue}
+                defaultModel={settings.data.defaults.research}
+                options={catalog.data.models}
+                disabled={!isOwner}
+                onChange={setResearchDraft}
+              />
+            </Field>
+            <Field label="Writing model" htmlFor="writing-model">
+              <ModelSelect
+                id="writing-model"
+                value={writingValue}
+                defaultModel={settings.data.defaults.writing}
+                options={catalog.data.models}
+                disabled={!isOwner}
+                onChange={setWritingDraft}
+              />
+            </Field>
+          </div>
+          <div className="flex items-center justify-end gap-3">
+            {!isOwner && <OwnerOnly />}
+            <Button
+              type="submit"
+              variant="ghost"
+              size="md"
+              disabled={!isOwner || save.isPending || !dirty}
+            >
+              {save.isPending && <Spinner className="h-3.5 w-3.5" />}
+              Save models
+            </Button>
+          </div>
+        </form>
       )}
     </Card>
   );
@@ -447,10 +561,11 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted">
-        Your organization&apos;s profile, people, and key.
+        Your organization&apos;s profile, people, models, and key.
       </p>
       <OrgProfileCard isOwner={isOwner} />
       <MembersCard isOwner={isOwner} selfId={selfId} />
+      <ModelsCard isOwner={isOwner} />
       <ApiKeyCard isOwner={isOwner} />
     </div>
   );
