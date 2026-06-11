@@ -6,7 +6,7 @@ export * from "./schemas/run";
 export * from "./schemas/approval";
 export * from "./schemas/events";
 export * from "./schemas/blog-pipeline";
-export * from "./schemas/workflow-inputs";
 export * from "./schemas/graph-spec";
+export * from "./schemas/template";
 export * from "./schemas/interpreter";
 export * from "./constants";

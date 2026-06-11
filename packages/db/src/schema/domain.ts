@@ -12,7 +12,6 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type {
-  BlogPostPipelineInput,
   BlogPostPipelineOutput,
   ApprovalContext,
   GraphSpec,
@@ -121,7 +120,9 @@ export const workflowRuns = pgTable(
       { onDelete: "set null" },
     ),
     status: runStatusEnum("status").default("pending").notNull(),
-    input: jsonb("input").$type<BlogPostPipelineInput>().notNull(),
+    // Template-shaped launch params (Unit 26) — parse against the template's
+    // own schema on read; never assume the blog shape.
+    input: jsonb("input").$type<Record<string, unknown>>().notNull(),
     output: jsonb("output").$type<BlogPostPipelineOutput>(),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),

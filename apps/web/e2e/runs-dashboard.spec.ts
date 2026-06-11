@@ -129,7 +129,9 @@ async function mockBackend(page: Page) {
 
 test("populated run dashboard sorts attention-first", async ({ page }) => {
   // Freeze time so relative timestamps + live durations render deterministically.
-  await page.clock.install({ time: new Date("2026-06-10T12:00:00.000Z") });
+  // setFixedTime (not install): install's clock keeps advancing in real time,
+  // so the ticking duration cells drifted a second between runs (flaky diffs).
+  await page.clock.setFixedTime(new Date("2026-06-10T12:00:00.000Z"));
   await page.addInitScript(
     (arg: { key: string; token: string }) =>
       window.localStorage.setItem(arg.key, arg.token),

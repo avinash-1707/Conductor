@@ -3,9 +3,9 @@ import type { Step } from "@conductor/db";
 import { buildResumePlan } from "./resume-plan";
 
 /**
- * Pure derivation tests for the resume plan (Unit 22) — no Postgres. The
- * route suite covers the same logic end-to-end; these pin the fallback chain,
- * including corrupt stored outputs.
+ * Pure derivation tests for the resume plan (Unit 22, channel-based since
+ * Unit 26) — no Postgres. The route suite covers the same logic end-to-end;
+ * these pin the fallback chain, including corrupt stored outputs.
  */
 
 const findings = {
@@ -47,9 +47,9 @@ describe("buildResumePlan", () => {
     const failed = makeStep({ stepKind: "publish", status: "failed" });
 
     const plan = buildResumePlan([research, write, failed], true);
-    expect(plan.resumeFrom).toEqual({
-      step: "publish",
-      priorOutputs: { research: findings, write: draft },
+    expect(plan.resume).toEqual({
+      channels: { research: findings, draft },
+      gateApproved: true,
     });
     expect(plan.carriedSteps).toEqual([research, write]);
   });
@@ -59,9 +59,9 @@ describe("buildResumePlan", () => {
     const failed = makeStep({ stepKind: "write", status: "failed" });
 
     const plan = buildResumePlan([research, failed], true);
-    expect(plan.resumeFrom).toEqual({
-      step: "write",
-      priorOutputs: { research: findings },
+    expect(plan.resume).toEqual({
+      channels: { research: findings },
+      gateApproved: true,
     });
     expect(plan.carriedSteps).toEqual([research]);
   });
@@ -70,16 +70,16 @@ describe("buildResumePlan", () => {
     const research = makeStep({ stepKind: "research", status: "completed", output: findings });
 
     const plan = buildResumePlan([research], false);
-    expect(plan.resumeFrom).toEqual({
-      step: "approval",
-      priorOutputs: { research: findings },
+    expect(plan.resume).toEqual({
+      channels: { research: findings },
+      gateApproved: false,
     });
   });
 
   it("restarts fully when nothing completed", () => {
     const failed = makeStep({ stepKind: "research", status: "failed" });
     expect(buildResumePlan([failed], false)).toEqual({
-      resumeFrom: undefined,
+      resume: undefined,
       carriedSteps: [],
     });
   });
@@ -91,7 +91,7 @@ describe("buildResumePlan", () => {
       output: { summary: "" },
     });
     expect(buildResumePlan([corrupt], true)).toEqual({
-      resumeFrom: undefined,
+      resume: undefined,
       carriedSteps: [],
     });
   });
@@ -105,9 +105,9 @@ describe("buildResumePlan", () => {
     });
 
     const plan = buildResumePlan([research, corruptWrite], true);
-    expect(plan.resumeFrom).toEqual({
-      step: "write",
-      priorOutputs: { research: findings },
+    expect(plan.resume).toEqual({
+      channels: { research: findings },
+      gateApproved: true,
     });
     expect(plan.carriedSteps).toEqual([research]);
   });

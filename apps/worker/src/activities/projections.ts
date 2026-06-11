@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { ApplicationFailure } from "@temporalio/activity";
-import {
-  blogPostPipelineInputSchema,
-  blogPostPipelineOutputSchema,
-  stepKindSchema,
-} from "@conductor/shared";
+import { blogPostPipelineOutputSchema, stepKindSchema } from "@conductor/shared";
 import { repos } from "../db";
 import { logger } from "../logger";
 import { publishRunEvent } from "../realtime/publisher";
@@ -21,7 +17,9 @@ import { workflowExecutionContext } from "./activity-context";
 export const recordRunStartedInputSchema = z.object({
   orgId: z.string().min(1),
   workflowName: z.string().min(1),
-  input: blogPostPipelineInputSchema,
+  // Template-shaped launch params (Unit 26) — the interpreter validated them
+  // against the template's own schema; the projection stores them as-is.
+  input: z.record(z.string(), z.unknown()),
 });
 export type RecordRunStartedInput = z.infer<typeof recordRunStartedInputSchema>;
 

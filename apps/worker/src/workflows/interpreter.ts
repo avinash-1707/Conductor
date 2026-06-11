@@ -16,6 +16,7 @@ import {
   approvalSignalPayloadSchema,
   executionOrder,
   interpreterInputSchema,
+  templateCatalog,
   type ApprovalSignalPayload,
   type BlogDraft,
   type GraphNode,
@@ -30,16 +31,21 @@ import {
 import type * as activities from "../activities";
 
 /**
- * The generic interpreter (Unit 25): walks a validated graph_spec in chain
- * order, dispatching the registered activity per node type with that node's
- * own timeout/retry config, and running the approval node with the same
- * signal + condition() gate as the hardcoded contentPipeline (invariant 3).
- * One engine, two authoring surfaces — templates (Unit 26) and the canvas
- * (Phase 5) both execute here; the Blog Post Pipeline expressed as a spec
- * behaves identically to the hardcoded workflow (proven by the test suite).
+ * The generic interpreter (Unit 25, generalized in Unit 26): walks a validated
+ * graph_spec in chain order, dispatching the registered activity per node type
+ * with that node's own timeout/retry config, and running the approval node
+ * with the same signal + condition() gate as ever (invariant 3). One engine,
+ * two authoring surfaces — every template launch and resume executes here; the
+ * hardcoded contentPipeline is retired (Unit 26).
  *
- * Deterministic throughout: spec validation and chain ordering are pure
- * shared helpers; all clocks, randomness, and I/O live in activities.
+ * Resume-from-step is channel-based: an activity node is skipped when its
+ * `produces` channel was pre-supplied by the server from the failed run's
+ * stored outputs (so publish — which produces nothing — always executes), and
+ * the gate is skipped only when the prior run's gate was approved.
+ *
+ * Deterministic throughout: spec validation, chain ordering, and the template
+ * catalog are pure shared data/helpers; all clocks, randomness, and I/O live
+ * in activities.
  */
 
 type StepActivities = Pick<typeof activities, "research" | "writeDraft" | "publish">;
@@ -47,8 +53,9 @@ type ActivityNode = Exclude<GraphNode, { type: "approval" }>;
 
 /**
  * Per-node activity options: the node's config over the registry defaults,
- * with the same backoff shape as the hardcoded workflow. proxyActivities is a
- * deterministic proxy factory — building one per node is sandbox-safe.
+ * with the same backoff shape as the retired hardcoded workflow.
+ * proxyActivities is a deterministic proxy factory — one per node is
+ * sandbox-safe.
  */
 function stepProxy(node: ActivityNode): StepActivities {
   const config = { ...activityRegistry[node.type].defaults, ...node.config };
@@ -64,7 +71,7 @@ function stepProxy(node: ActivityNode): StepActivities {
 }
 
 // Short record-writes (approval request + run projections) — never a human
-// wait (invariant 3): tighter timeout, same backoff as contentPipeline.
+// wait (invariant 3): tighter timeout, same backoff.
 const { createApprovalRequest, recordRunStarted, recordRunTerminal } = proxyActivities<
   typeof activities
 >({
@@ -111,14 +118,19 @@ export async function interpreterWorkflow(
 ): Promise<InterpreterResult> {
   const parsedInput = interpreterInputSchema.safeParse(input);
   if (!parsedInput.success) {
-    // Invalid input (including a structurally invalid spec — the schema
-    // re-runs the full graph validation) fails the run immediately.
+    // Invalid input (a structurally invalid spec or params that violate the
+    // template's parameter schema — the input schema re-runs both) fails the
+    // run immediately, before any activity is called.
     throw ApplicationFailure.nonRetryable(
       `Invalid interpreter input: ${parsedInput.error.message}`,
       "InvalidWorkflowInput",
     );
   }
-  const { orgId, spec, params } = parsedInput.data;
+  const { orgId, spec, params, resumeFrom } = parsedInput.data;
+  // v1 has exactly one template family; the catalog parse gives the dispatchers
+  // their typed parameters (already proven valid by the input schema). How a
+  // future template's params map onto its nodes is Unit 29's question.
+  const blogParams = templateCatalog["blog-post-pipeline"].paramsSchema.parse(params);
   const order = executionOrder(spec);
 
   let decision: ApprovalSignalPayload | undefined;
@@ -153,20 +165,26 @@ export async function interpreterWorkflow(
   // workflowName = the spec's name: customer vocabulary, what the dashboard shows.
   await recordRunStarted({ orgId, workflowName: spec.name, input: params });
 
-  // The run's data channels — exactly the registry's produces/consumes model.
-  const channels: { research?: ResearchFindings; draft?: BlogDraft } = {};
+  // The run's data channels — the registry's produces/consumes model. A resume
+  // pre-seeds them with the prior run's carried outputs (Unit 22 semantics).
+  const channels: { research?: ResearchFindings; draft?: BlogDraft } = {
+    ...resumeFrom?.channels,
+  };
   let output: InterpreterResult & { status: "completed" } = { status: "completed" };
 
   try {
     for (const node of order) {
       if (node.type === "approval") {
+        // A resume whose prior gate was approved carries that approval — a
+        // human already decided; re-asking would redo completed human work.
+        if (resumeFrom?.gateApproved) continue;
         state = { status: "suspended", currentStep: "approval" };
         const findings = requireChannel(channels.research, node, "research");
         // Short record-write; the human wait is the signal + condition below
         // (invariant 3 — no activity ever blocks on a person).
         await createApprovalRequest({
           orgId,
-          approverId: params.approverId,
+          approverId: blogParams.approverId,
           context: { research: findings },
         });
         const timeoutHours = node.config.timeoutHours ?? activityRegistry.approval.defaults.timeoutHours;
@@ -190,24 +208,31 @@ export async function interpreterWorkflow(
         continue;
       }
 
+      // Channel-based resume skip: this node's output was carried over from
+      // the failed run — never re-execute completed work or re-spend tokens.
+      // A node that produces nothing (publish) always executes: a
+      // resumed-at-publish run never delivered.
+      const produces = activityRegistry[node.type].produces;
+      if (produces && channels[produces] !== undefined) continue;
+
       state = { status: "running", currentStep: node.type };
       const proxy = stepProxy(node);
 
       if (node.type === "research") {
         channels.research = await proxy.research({
           orgId,
-          topic: params.topic,
-          keywords: params.keywords,
-          tone: params.tone,
+          topic: blogParams.topic,
+          keywords: blogParams.keywords,
+          tone: blogParams.tone,
         });
       } else if (node.type === "write") {
         const findings = requireChannel(channels.research, node, "research");
         channels.draft = await proxy.writeDraft({
           orgId,
-          topic: params.topic,
-          keywords: params.keywords,
-          tone: params.tone,
-          wordCount: params.wordCount,
+          topic: blogParams.topic,
+          keywords: blogParams.keywords,
+          tone: blogParams.tone,
+          wordCount: blogParams.wordCount,
           findings,
         });
       } else {

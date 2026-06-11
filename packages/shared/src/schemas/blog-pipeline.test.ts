@@ -4,7 +4,6 @@ import {
   researchFindingsSchema,
   blogDraftSchema,
   blogPostPipelineOutputSchema,
-  contentPipelineResultSchema,
   runStateSchema,
 } from "./blog-pipeline";
 
@@ -128,51 +127,6 @@ describe("blogPostPipelineOutputSchema", () => {
     expect(blogPostPipelineOutputSchema.safeParse({ draft, deliveredAt: "nope" }).success).toBe(
       false,
     );
-  });
-});
-
-describe("contentPipelineResultSchema", () => {
-  const output = {
-    draft: { title: "T", markdown: "# Body", wordCount: 1200 },
-    deliveredAt: "2026-06-10T12:00:00.000Z",
-  };
-
-  it("accepts each terminal variant", () => {
-    expect(
-      contentPipelineResultSchema.safeParse({ status: "completed", output }).success,
-    ).toBe(true);
-    expect(
-      contentPipelineResultSchema.safeParse({
-        status: "rejected",
-        reviewerId: "user_42",
-        decidedAt: "2026-06-10T12:00:00.000Z",
-      }).success,
-    ).toBe(true);
-    expect(contentPipelineResultSchema.safeParse({ status: "expired" }).success).toBe(true);
-  });
-
-  it("rejects a completed result without output and a rejected result without reviewer", () => {
-    expect(contentPipelineResultSchema.safeParse({ status: "completed" }).success).toBe(false);
-    expect(
-      contentPipelineResultSchema.safeParse({
-        status: "rejected",
-        decidedAt: "2026-06-10T12:00:00.000Z",
-      }).success,
-    ).toBe(false);
-  });
-
-  it("rejects an unknown status discriminant", () => {
-    expect(contentPipelineResultSchema.safeParse({ status: "running" }).success).toBe(false);
-  });
-
-  it("rejects a malformed decidedAt (boundary)", () => {
-    expect(
-      contentPipelineResultSchema.safeParse({
-        status: "rejected",
-        reviewerId: "user_42",
-        decidedAt: "yesterday",
-      }).success,
-    ).toBe(false);
   });
 });
 

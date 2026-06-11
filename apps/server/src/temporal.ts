@@ -3,7 +3,7 @@ import {
   SIGNALS,
   TASK_QUEUE,
   type ApprovalSignalPayload,
-  type ContentPipelineInput,
+  type InterpreterInput,
 } from "@conductor/shared";
 
 /**
@@ -12,11 +12,14 @@ import {
  * execution). Routes depend on this interface so inject tests run with a mock
  * and no Temporal server; `server.ts` wires the real client over the shared
  * gRPC connection from deps.ts.
+ *
+ * Since Unit 26 every run — template launch or resume — starts the generic
+ * interpreterWorkflow (the hardcoded contentPipeline is retired).
  */
 export interface RunGateway {
-  startContentPipeline(args: {
+  startInterpreter(args: {
     workflowId: string;
-    input: ContentPipelineInput;
+    input: InterpreterInput;
   }): Promise<{ temporalRunId: string }>;
   /** Fires the approvalDecision signal at a suspended run (Unit 14). */
   signalApprovalDecision(args: {
@@ -40,12 +43,12 @@ export function createRunGateway(
   }
 
   return {
-    async startContentPipeline({ workflowId, input }) {
+    async startInterpreter({ workflowId, input }) {
       const c = await getClient();
       // Workflow type by name — the server never imports worker code (apps
       // never import from each other); the name is pinned by the worker's
       // exported workflow function.
-      const handle = await c.workflow.start("contentPipeline", {
+      const handle = await c.workflow.start("interpreterWorkflow", {
         taskQueue,
         workflowId,
         args: [input],

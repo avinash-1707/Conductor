@@ -1,13 +1,15 @@
 import { Client, Connection } from "@temporalio/client";
-import { TASK_QUEUE, contentPipelineInputSchema } from "@conductor/shared";
-import { contentPipeline } from "../src/workflows";
+import { TASK_QUEUE, interpreterInputSchema, templateCatalog } from "@conductor/shared";
+import { interpreterWorkflow } from "../src/workflows";
 import { env } from "../src/env";
 import { logger } from "../src/logger";
 
 /**
- * Starter script: kicks off a contentPipeline run with sample input and waits
- * for its terminal result. The run suspends at the approval gate — resume it
- * with: pnpm --filter @conductor/worker signal-approval <workflowId> approved
+ * Starter script: kicks off a Blog Post Pipeline run (the interpreter walking
+ * the catalog's blog spec — Unit 26 retired the hardcoded workflow) with
+ * sample input and waits for its terminal result. The run suspends at the
+ * approval gate — resume it with:
+ * pnpm --filter @conductor/worker signal-approval <workflowId> approved
  *
  *   CONDUCTOR_ORG_ID=<orgId> pnpm --filter @conductor/worker run-pipeline "My topic"
  *
@@ -26,28 +28,33 @@ async function main(): Promise<void> {
   try {
     const client = new Client({ connection, namespace: env.TEMPORAL_NAMESPACE });
     const topic = process.argv[2] ?? "How durable workflows prevent lost AI runs";
-    const input = contentPipelineInputSchema.parse({
+    const template = templateCatalog["blog-post-pipeline"];
+    const input = interpreterInputSchema.parse({
       orgId,
-      topic,
-      keywords: ["durable execution", "temporal"],
-      tone: "technical",
-      wordCount: 1200,
-      approverId: "user_demo",
+      templateKey: template.key,
+      spec: template.spec,
+      params: {
+        topic,
+        keywords: ["durable execution", "temporal"],
+        tone: "technical",
+        wordCount: 1200,
+        approverId: "user_demo",
+      },
     });
     const workflowId = `content-${topic.toLowerCase().replace(/\s+/g, "-").slice(0, 60)}`;
 
-    const handle = await client.workflow.start(contentPipeline, {
+    const handle = await client.workflow.start(interpreterWorkflow, {
       taskQueue: TASK_QUEUE,
       workflowId,
       args: [input],
     });
     logger.info(
       { workflowId, runId: handle.firstExecutionRunId },
-      "started contentPipeline — suspends at the approval gate; signal it to resume",
+      "started Blog Post Pipeline — suspends at the approval gate; signal it to resume",
     );
 
     const result = await handle.result();
-    logger.info({ workflowId, result }, "contentPipeline finished");
+    logger.info({ workflowId, result }, "Blog Post Pipeline finished");
   } finally {
     await connection.close();
   }

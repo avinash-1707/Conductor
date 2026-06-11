@@ -16,15 +16,20 @@ import {
 } from "@conductor/shared";
 import type { RecordRunTerminalInput } from "../activities/projections";
 import type { CreateApprovalRequestInput } from "../activities/approvals";
-import { contentPipeline, approvalDecisionSignal } from "./content-pipeline";
-import { interpreterWorkflow, interpreterRunStateQuery } from "./interpreter";
+import {
+  interpreterApprovalSignal,
+  interpreterRunStateQuery,
+  interpreterWorkflow,
+} from "./interpreter";
 
 /**
- * Time-skipping interpreter tests (Unit 25) — mirrors the Unit 04 suite but
- * driven by a graph spec (build-plan Verify): happy path, retry, reject, 24h
- * expiry with skipped time, retries-exhausted failure, plus the two
- * interpreter-specific guarantees: per-node retry config is honored, and the
- * Blog Post Pipeline as a spec behaves identically to the hardcoded workflow.
+ * Time-skipping interpreter tests (Unit 25, extended in Unit 26) — mirrors the
+ * Unit 04 suite but driven by a graph spec (build-plan Verify): happy path,
+ * retry, reject, 24h expiry with skipped time, retries-exhausted failure,
+ * per-node retry config, and the Unit 22 resume proofs by call count
+ * (channel-based resume: carried steps never re-execute; publish always runs).
+ * The hardcoded contentPipeline (and the Unit 25 equivalence test against it)
+ * was retired in Unit 26 — the golden-path E2E is the behavioral regression net.
  */
 
 const params: BlogPostPipelineInput = {
@@ -37,6 +42,7 @@ const params: BlogPostPipelineInput = {
 
 const input: InterpreterInput = {
   orgId: "org-1",
+  templateKey: "blog-post-pipeline",
   spec: blogPostPipelineSpec,
   params,
 };
@@ -163,7 +169,7 @@ describe("interpreterWorkflow", () => {
         workflowId: "interpreter-happy",
         args: [input],
       });
-      await handle.signal(approvalDecisionSignal, approvedPayload);
+      await handle.signal(interpreterApprovalSignal, approvedPayload);
       const result = await handle.result();
 
       expect(result.status).toBe("completed");
@@ -192,53 +198,6 @@ describe("interpreterWorkflow", () => {
     expect(tracker.terminal[0]).toMatchObject({ orgId: "org-1", status: "completed" });
   });
 
-  it("produces a result identical to the hardcoded contentPipeline (equivalence)", async () => {
-    const interpreterMocks = makeMocks();
-    const hardcodedMocks = makeMocks();
-    const taskQueue = "test-interpreter-equivalence";
-
-    const viaInterpreter = await runWorker(
-      taskQueue,
-      interpreterMocks.activities,
-      async () => {
-        const handle = await testEnv.client.workflow.start(interpreterWorkflow, {
-          taskQueue,
-          workflowId: "equivalence-interpreter",
-          args: [input],
-        });
-        await handle.signal(approvalDecisionSignal, approvedPayload);
-        return handle.result();
-      },
-    );
-    const viaHardcoded = await runWorker(
-      taskQueue,
-      hardcodedMocks.activities,
-      async () => {
-        const handle = await testEnv.client.workflow.start(contentPipeline, {
-          taskQueue,
-          workflowId: "equivalence-hardcoded",
-          args: [{ orgId: "org-1", ...params }],
-        });
-        await handle.signal(approvalDecisionSignal, approvedPayload);
-        return handle.result();
-      },
-    );
-
-    // Same mocks + same launch params → byte-identical terminal results.
-    expect(viaInterpreter).toEqual(viaHardcoded);
-    // …and the same activity traffic: inputs to every step match.
-    expect(interpreterMocks.tracker.researchInputs).toEqual(
-      hardcodedMocks.tracker.researchInputs,
-    );
-    expect(interpreterMocks.tracker.writeInputs).toEqual(hardcodedMocks.tracker.writeInputs);
-    expect(interpreterMocks.tracker.publishCalls).toBe(
-      hardcodedMocks.tracker.publishCalls,
-    );
-    expect(interpreterMocks.tracker.approvalRequests).toEqual(
-      hardcodedMocks.tracker.approvalRequests,
-    );
-  });
-
   it("retries a failing research activity and still completes", async () => {
     const { tracker, activities } = makeMocks({ researchFailuresBeforeSuccess: 2 });
     const taskQueue = "test-interpreter-retry";
@@ -249,7 +208,7 @@ describe("interpreterWorkflow", () => {
         workflowId: "interpreter-retry",
         args: [input],
       });
-      await handle.signal(approvalDecisionSignal, approvedPayload);
+      await handle.signal(interpreterApprovalSignal, approvedPayload);
       const result = await handle.result();
       expect(result.status).toBe("completed");
     });
@@ -306,7 +265,7 @@ describe("interpreterWorkflow", () => {
         workflowId: "interpreter-reject",
         args: [input],
       });
-      await handle.signal(approvalDecisionSignal, {
+      await handle.signal(interpreterApprovalSignal, {
         ...approvedPayload,
         decision: "rejected",
       });
@@ -400,5 +359,92 @@ describe("interpreterWorkflow", () => {
     expect(tracker.publishCalls).toBe(0);
     expect(tracker.runStarted).toHaveLength(0);
     expect(tracker.terminal).toHaveLength(0);
+  });
+  it("resume with carried research + approved gate skips research and the gate (call counts)", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-interpreter-resume-write";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(interpreterWorkflow, {
+        taskQueue,
+        workflowId: "interpreter-resume-write",
+        args: [
+          {
+            ...input,
+            resumeFrom: { channels: { research: findings }, gateApproved: true },
+          },
+        ],
+      });
+      // No signal needed — the approved gate is carried over.
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+    });
+    expect(tracker.researchAttempts).toBe(0);
+    expect(tracker.approvalRequests).toHaveLength(0);
+    expect(tracker.writeCalls).toBe(1);
+    // The write step consumes the CARRIED findings, not a re-run's.
+    expect(tracker.writeInputs[0]).toMatchObject({ findings });
+    expect(tracker.publishCalls).toBe(1);
+    expect(tracker.terminal[0]).toMatchObject({ status: "completed" });
+  });
+
+  it("resume at publish skips research, gate, and write — publish always runs", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-interpreter-resume-publish";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(interpreterWorkflow, {
+        taskQueue,
+        workflowId: "interpreter-resume-publish",
+        args: [
+          {
+            ...input,
+            resumeFrom: {
+              channels: { research: findings, draft },
+              gateApproved: true,
+            },
+          },
+        ],
+      });
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+      if (result.status === "completed") {
+        // The deliverable is built from the carried draft.
+        expect(result.output?.draft).toEqual(draft);
+      }
+    });
+    expect(tracker.researchAttempts).toBe(0);
+    expect(tracker.approvalRequests).toHaveLength(0);
+    expect(tracker.writeCalls).toBe(0);
+    expect(tracker.publishCalls).toBe(1);
+  });
+
+  it("resume with an unapproved prior gate re-runs the gate with the carried findings", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-interpreter-resume-gate";
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(interpreterWorkflow, {
+        taskQueue,
+        workflowId: "interpreter-resume-gate",
+        args: [
+          {
+            ...input,
+            resumeFrom: { channels: { research: findings }, gateApproved: false },
+          },
+        ],
+      });
+      await handle.signal(interpreterApprovalSignal, approvedPayload);
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+    });
+    expect(tracker.researchAttempts).toBe(0);
+    // The gate re-asks, presenting the carried research context.
+    expect(tracker.approvalRequests).toHaveLength(1);
+    expect(tracker.approvalRequests[0]).toMatchObject({
+      context: { research: findings },
+    });
+    expect(tracker.writeCalls).toBe(1);
+    expect(tracker.publishCalls).toBe(1);
   });
 });

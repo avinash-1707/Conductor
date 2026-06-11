@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { blogPostPipelineSpec } from "./graph-spec";
-import { interpreterInputSchema, interpreterResultSchema } from "./interpreter";
+import {
+  interpreterInputSchema,
+  interpreterResultSchema,
+  interpreterResumeSchema,
+} from "./interpreter";
 
 const params = {
   topic: "Durable AI pipelines",
@@ -10,14 +14,23 @@ const params = {
   approverId: "user_1",
 };
 
+const research = {
+  summary: "Findings",
+  sources: [{ title: "S", url: "https://example.com", takeaway: "T" }],
+  keyPoints: ["K"],
+};
+
+const draft = { title: "T", markdown: "# T", wordCount: 1200 };
+
 const valid = {
   orgId: "org_1",
+  templateKey: "blog-post-pipeline",
   spec: blogPostPipelineSpec,
   params,
 };
 
 describe("interpreterInputSchema", () => {
-  it("accepts an org + validated spec + launch params", () => {
+  it("accepts an org + template key + validated spec + launch params", () => {
     expect(interpreterInputSchema.safeParse(valid).success).toBe(true);
   });
 
@@ -33,14 +46,51 @@ describe("interpreterInputSchema", () => {
     expect(interpreterInputSchema.safeParse(broken).success).toBe(false);
   });
 
-  it("rejects a missing orgId and bad params (boundary)", () => {
-    expect(interpreterInputSchema.safeParse({ ...valid, orgId: "" }).success).toBe(false);
+  it("validates params against the template's own schema (Unit 26)", () => {
     expect(
       interpreterInputSchema.safeParse({
         ...valid,
         params: { ...params, wordCount: 99 },
       }).success,
     ).toBe(false);
+    expect(
+      interpreterInputSchema.safeParse({ ...valid, params: {} }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an unknown template key and a missing orgId (boundary)", () => {
+    expect(
+      interpreterInputSchema.safeParse({ ...valid, templateKey: "nope" }).success,
+    ).toBe(false);
+    expect(interpreterInputSchema.safeParse({ ...valid, orgId: "" }).success).toBe(false);
+  });
+
+  it("accepts each resume variant", () => {
+    for (const resumeFrom of [
+      { channels: { research }, gateApproved: false },
+      { channels: { research }, gateApproved: true },
+      { channels: { research, draft }, gateApproved: true },
+    ]) {
+      expect(interpreterInputSchema.safeParse({ ...valid, resumeFrom }).success).toBe(true);
+    }
+  });
+});
+
+describe("interpreterResumeSchema", () => {
+  it("rejects malformed channel payloads and a missing gate flag", () => {
+    expect(
+      interpreterResumeSchema.safeParse({
+        channels: { research: { summary: "" } },
+        gateApproved: true,
+      }).success,
+    ).toBe(false);
+    expect(interpreterResumeSchema.safeParse({ channels: {} }).success).toBe(false);
+  });
+
+  it("accepts empty channels (defensive — the server omits resumeFrom instead)", () => {
+    expect(
+      interpreterResumeSchema.safeParse({ channels: {}, gateApproved: false }).success,
+    ).toBe(true);
   });
 });
 
@@ -50,7 +100,7 @@ describe("interpreterResultSchema", () => {
       interpreterResultSchema.safeParse({
         status: "completed",
         output: {
-          draft: { title: "T", markdown: "# T", wordCount: 1200 },
+          draft,
           deliveredAt: "2026-06-10T12:00:00.000Z",
         },
       }).success,

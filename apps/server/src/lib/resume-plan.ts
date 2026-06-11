@@ -1,14 +1,20 @@
 import {
   blogDraftSchema,
   researchFindingsSchema,
-  type ResumeFrom,
+  type InterpreterResume,
 } from "@conductor/shared";
 import type { Step } from "@conductor/db";
 
 /**
  * Derives where a failed run resumes from its stored `activity_log` outputs
- * (Unit 22) — pure, so the derivation is unit-testable without Postgres. The
- * resume point is computed server-side only; clients never choose it.
+ * (Unit 22, channel-based since Unit 26) — pure, so the derivation is
+ * unit-testable without Postgres. The resume point is computed server-side
+ * only; clients never choose it.
+ *
+ * The interpreter skips any node whose `produces` channel is supplied here
+ * (publish — which produces nothing — always re-runs: it never delivered) and
+ * skips the gate only when `gateApproved`. A completed write step implies the
+ * gate was passed, so `gateApproved` is forced true when the draft is carried.
  *
  * JSONB outputs are Zod-parsed on read (code-standards Data & Storage): a
  * step whose stored output no longer parses is treated as not completed and
@@ -16,7 +22,7 @@ import type { Step } from "@conductor/db";
  */
 export interface ResumePlan {
   /** Omitted entirely when nothing usable completed (full restart). */
-  resumeFrom: ResumeFrom | undefined;
+  resume: InterpreterResume | undefined;
   /** Completed prior step rows to copy into the new run's activity_log. */
   carriedSteps: Step[];
 }
@@ -34,23 +40,24 @@ export function buildResumePlan(steps: Step[], approvalApproved: boolean): Resum
 
   if (researchRow && research?.success && writeRow && write?.success) {
     return {
-      resumeFrom: {
-        step: "publish",
-        priorOutputs: { research: research.data, write: write.data },
+      resume: {
+        channels: { research: research.data, draft: write.data },
+        // A completed write step can only exist past an approved gate.
+        gateApproved: true,
       },
       carriedSteps: [researchRow, writeRow],
     };
   }
   if (researchRow && research?.success) {
     return {
-      resumeFrom: {
+      resume: {
+        channels: { research: research.data },
         // The gate is skipped only when the prior run's gate was approved;
         // otherwise the resumed run re-asks with the carried findings.
-        step: approvalApproved ? "write" : "approval",
-        priorOutputs: { research: research.data },
+        gateApproved: approvalApproved,
       },
       carriedSteps: [researchRow],
     };
   }
-  return { resumeFrom: undefined, carriedSteps: [] };
+  return { resume: undefined, carriedSteps: [] };
 }

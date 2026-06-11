@@ -8,6 +8,7 @@ import { healthRoutes } from "./routes/health";
 import { apiKeyRoutes } from "./routes/api-keys";
 import { runRoutes } from "./routes/runs";
 import { approvalRoutes } from "./routes/approvals";
+import { templateRoutes } from "./routes/templates";
 import { registerAuth } from "./auth/plugin";
 import { createSessionVerifier } from "./auth/verify";
 import { createRealtime } from "./realtime/io";
@@ -94,6 +95,7 @@ export async function buildApp(opts: {
   if (opts.auth) {
     await registerAuth(app, { auth: opts.auth });
     await app.register(apiKeyRoutes);
+    await app.register(templateRoutes());
     if (opts.temporal) {
       await app.register(runRoutes(opts.temporal));
       await app.register(approvalRoutes(opts.temporal));

@@ -2,22 +2,29 @@ import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
-  blogPostPipelineInputSchema,
+  definitionParametersSchema,
+  launchRunRequestSchema,
+  templateCatalog,
+  type GraphSpec,
   type RunResource,
   type RunStepResource,
+  type TemplateKey,
 } from "@conductor/shared";
 import type { Run, Step } from "@conductor/db";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { decodeKeysetCursor, encodeKeysetCursor } from "../lib/keyset-cursor";
 import { buildResumePlan } from "../lib/resume-plan";
+import { ensureTemplateDefinition } from "../lib/templates";
 import { repos } from "../repos/index";
 import type { RunGateway } from "../temporal";
 
 /**
- * Run lifecycle routes (Unit 13). Handlers validate, authorize, touch the
- * org-scoped repos, and start workflows via the injected Temporal client —
- * nothing long-lived (invariant 10). The org id always comes from the verified
- * JWT claims (invariant 11); cross-org and unknown ids are the same 404.
+ * Run lifecycle routes (Unit 13; template launches since Unit 26). Handlers
+ * validate, authorize, touch the org-scoped repos, and start workflows via
+ * the injected Temporal client — nothing long-lived (invariant 10). The org
+ * id always comes from the verified JWT claims (invariant 11); cross-org and
+ * unknown ids are the same 404. Every start — launch or resume — runs the
+ * interpreterWorkflow pinned to a `workflow_definitions` version row.
  */
 
 const listQuerySchema = z.object({
@@ -71,11 +78,24 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
       { preHandler: (req, reply) => app.requireSession(req, reply) },
       async (req, reply) => {
         const orgId = activeOrgId(req);
-        const parsed = blogPostPipelineInputSchema.safeParse(req.body);
+        // Validates the template key AND the params against that template's
+        // own parameter schema (one shared source — the launch form mirrors it).
+        const parsed = launchRunRequestSchema.safeParse(req.body);
         if (!parsed.success) {
           throw new ValidationError(`Invalid run parameters: ${parsed.error.message}`);
         }
-        const input = parsed.data;
+        const { templateKey, params } = parsed.data;
+        const template = templateCatalog[templateKey];
+
+        // Pin the org's definition version (seeded/rolled forward on demand) —
+        // the run row records WHICH version; the spec rides inline in the
+        // workflow input so Temporal history holds exactly what executed.
+        const definition = await ensureTemplateDefinition(orgId, templateKey);
+        const spec = definition.graphSpec;
+        if (!spec) {
+          // Seeded rows always carry a spec; a bare row here is a server bug.
+          throw new AppError("The run could not be started. Try again.", "run_start_failed", 502);
+        }
 
         // Pre-create the pending projection row (the idempotency anchor the
         // worker's recordRunStarted converges on), then start the workflow.
@@ -84,16 +104,17 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
         const run = await repos.runs.createRun({
           id,
           orgId,
-          workflowName: "contentPipeline",
+          definitionId: definition.id,
+          workflowName: template.name,
           temporalWorkflowId,
           status: "pending",
-          input,
+          input: params,
         });
 
         try {
-          const { temporalRunId } = await temporal.startContentPipeline({
+          const { temporalRunId } = await temporal.startInterpreter({
             workflowId: temporalWorkflowId,
-            input: { ...input, orgId },
+            input: { orgId, templateKey, spec, params },
           });
           return reply
             .code(201)
@@ -136,9 +157,33 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
             409,
           );
         }
-        // Stored JSONB launch input is parsed on read; a row that no longer
-        // matches the contract cannot safely seed a new run.
-        const launch = blogPostPipelineInputSchema.safeParse(prior.input);
+        // Resolve the spec the failed run pinned: its definition version row
+        // (immutable — a resume continues exactly the graph that failed).
+        // Legacy pre-26 rows (no definition) fall back to the catalog blog
+        // template — v1 has exactly one template, so the fallback is lossless.
+        let templateKey: TemplateKey = "blog-post-pipeline";
+        let spec: GraphSpec | undefined;
+        let definitionId: string | null = prior.definitionId;
+        if (prior.definitionId) {
+          const definition = await repos.definitions.findDefinitionById({
+            orgId,
+            id: prior.definitionId,
+          });
+          if (definition?.graphSpec) {
+            spec = definition.graphSpec;
+            const link = definitionParametersSchema.safeParse(definition.parameters);
+            if (link.success) templateKey = link.data.templateKey;
+          }
+        }
+        if (!spec) {
+          const fallback = await ensureTemplateDefinition(orgId, templateKey);
+          spec = fallback.graphSpec ?? templateCatalog[templateKey].spec;
+          definitionId = fallback.id;
+        }
+
+        // Stored JSONB launch input is parsed on read against the template's
+        // own schema; a row that no longer matches cannot safely seed a run.
+        const launch = templateCatalog[templateKey].paramsSchema.safeParse(prior.input);
         if (!launch.success) {
           throw new AppError(
             "This run cannot be resumed.",
@@ -166,6 +211,7 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
         const run = await repos.runs.createRun({
           id,
           orgId,
+          definitionId,
           workflowName: prior.workflowName,
           temporalWorkflowId,
           status: "pending",
@@ -187,12 +233,14 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
         }
 
         try {
-          const { temporalRunId } = await temporal.startContentPipeline({
+          const { temporalRunId } = await temporal.startInterpreter({
             workflowId: temporalWorkflowId,
             input: {
-              ...launch.data,
               orgId,
-              ...(plan.resumeFrom ? { resumeFrom: plan.resumeFrom } : {}),
+              templateKey,
+              spec,
+              params: launch.data,
+              ...(plan.resume ? { resumeFrom: plan.resume } : {}),
             },
           });
           return reply.code(201).send(toRunResource({ ...run, temporalRunId }));

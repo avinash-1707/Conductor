@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import {
+  blogPostPipelineSpec,
   runSchema,
   runDetailResponseSchema,
   runListResponseSchema,
@@ -14,10 +15,10 @@ import type { RunGateway } from "../temporal";
 import { signUp, signUpOwner } from "../test-utils/auth";
 
 /**
- * Run lifecycle API tests (Unit 13) — real Better Auth + Postgres, mocked
- * Temporal starter. Covers the happy paths, validation, auth, tenancy 404s,
- * and pagination cursor correctness. Requires local Postgres with all
- * migrations applied.
+ * Run lifecycle API tests (Unit 13; template launches since Unit 26) — real
+ * Better Auth + Postgres, mocked Temporal gateway. Covers the happy paths,
+ * definition pinning, validation, auth, tenancy 404s, and pagination cursor
+ * correctness. Requires local Postgres with all migrations applied.
  */
 const checks = {
   postgres: async () => true,
@@ -26,7 +27,7 @@ const checks = {
 };
 
 const starter: RunGateway = {
-  startContentPipeline: vi.fn(),
+  startInterpreter: vi.fn(),
   signalApprovalDecision: vi.fn(),
 };
 
@@ -42,8 +43,8 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  vi.mocked(starter.startContentPipeline).mockReset();
-  vi.mocked(starter.startContentPipeline).mockResolvedValue({
+  vi.mocked(starter.startInterpreter).mockReset();
+  vi.mocked(starter.startInterpreter).mockResolvedValue({
     temporalRunId: "tr-test-1",
   });
 });
@@ -56,12 +57,14 @@ const params = {
   approverId: "user_approver",
 };
 
+const launchBody = { templateKey: "blog-post-pipeline", params };
+
 async function startRun(jwt: string): Promise<RunResource> {
   const res = await app.inject({
     method: "POST",
     url: "/runs",
     headers: { authorization: `Bearer ${jwt}` },
-    payload: params,
+    payload: launchBody,
   });
   expect(res.statusCode, res.body).toBe(201);
   return runSchema.parse(res.json());
@@ -76,13 +79,26 @@ describe("POST /runs", () => {
     expect(run.temporalWorkflowId).toBe(`run-${run.id}`);
     expect(run.temporalRunId).toBe("tr-test-1");
     expect(run.input).toEqual(params);
-    expect(starter.startContentPipeline).toHaveBeenCalledWith({
+    expect(starter.startInterpreter).toHaveBeenCalledWith({
       workflowId: `run-${run.id}`,
-      input: { ...params, orgId },
+      input: {
+        orgId,
+        templateKey: "blog-post-pipeline",
+        spec: blogPostPipelineSpec,
+        params,
+      },
     });
 
     const stored = await repos.runs.findRunById({ orgId, id: run.id });
     expect(stored?.status).toBe("pending");
+    // The run pins the seeded definition version row (Unit 26).
+    expect(stored?.definitionId).toBeTruthy();
+    const definition = await repos.definitions.findDefinitionById({
+      orgId,
+      id: stored!.definitionId!,
+    });
+    expect(definition?.name).toBe("Blog Post Pipeline");
+    expect(definition?.graphSpec).toEqual(blogPostPipelineSpec);
   });
 
   it("takes the org from the verified claims, never the body", async () => {
@@ -91,10 +107,10 @@ describe("POST /runs", () => {
       method: "POST",
       url: "/runs",
       headers: { authorization: `Bearer ${jwt}` },
-      payload: { ...params, orgId: "org_attacker" },
+      payload: { ...launchBody, orgId: "org_attacker" },
     });
     expect(res.statusCode, res.body).toBe(201);
-    expect(starter.startContentPipeline).toHaveBeenCalledWith(
+    expect(starter.startInterpreter).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ orgId }) }),
     );
   });
@@ -105,14 +121,26 @@ describe("POST /runs", () => {
       method: "POST",
       url: "/runs",
       headers: { authorization: `Bearer ${jwt}` },
-      payload: { ...params, wordCount: 7 },
+      payload: { templateKey: "blog-post-pipeline", params: { ...params, wordCount: 7 } },
     });
     expect(res.statusCode).toBe(400);
-    expect(starter.startContentPipeline).not.toHaveBeenCalled();
+    expect(starter.startInterpreter).not.toHaveBeenCalled();
+  });
+
+  it("400s an unknown template key", async () => {
+    const { jwt } = await signUpOwner(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/runs",
+      headers: { authorization: `Bearer ${jwt}` },
+      payload: { templateKey: "not-a-template", params },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(starter.startInterpreter).not.toHaveBeenCalled();
   });
 
   it("401s an unauthenticated request and 403s without an active org", async () => {
-    const unauth = await app.inject({ method: "POST", url: "/runs", payload: params });
+    const unauth = await app.inject({ method: "POST", url: "/runs", payload: launchBody });
     expect(unauth.statusCode).toBe(401);
 
     const { jwt } = await signUp(app);
@@ -120,14 +148,14 @@ describe("POST /runs", () => {
       method: "POST",
       url: "/runs",
       headers: { authorization: `Bearer ${jwt}` },
-      payload: params,
+      payload: launchBody,
     });
     expect(noOrg.statusCode).toBe(403);
   });
 
   it("marks the run failed and returns 502 when the workflow start fails", async () => {
     const { jwt, orgId } = await signUpOwner(app);
-    vi.mocked(starter.startContentPipeline).mockRejectedValue(
+    vi.mocked(starter.startInterpreter).mockRejectedValue(
       new Error("temporal unreachable"),
     );
 
@@ -135,7 +163,7 @@ describe("POST /runs", () => {
       method: "POST",
       url: "/runs",
       headers: { authorization: `Bearer ${jwt}` },
-      payload: params,
+      payload: launchBody,
     });
     expect(res.statusCode).toBe(502);
     expect((res.json() as { error: { code: string } }).error.code).toBe(
@@ -354,12 +382,14 @@ describe("POST /runs/:id/resume", () => {
     expect(run.resumedFromRunId).toBe(prior.id);
     expect(run.input).toEqual(params);
 
-    expect(starter.startContentPipeline).toHaveBeenLastCalledWith({
+    expect(starter.startInterpreter).toHaveBeenLastCalledWith({
       workflowId: `run-${run.id}`,
       input: {
-        ...params,
         orgId,
-        resumeFrom: { step: "write", priorOutputs: { research: findings } },
+        templateKey: "blog-post-pipeline",
+        spec: blogPostPipelineSpec,
+        params,
+        resumeFrom: { channels: { research: findings }, gateApproved: true },
       },
     });
 
@@ -391,14 +421,16 @@ describe("POST /runs/:id/resume", () => {
     const res = await resume(jwt, prior.id);
     expect(res.statusCode, res.body).toBe(201);
     const run = runSchema.parse(res.json());
-    expect(starter.startContentPipeline).toHaveBeenLastCalledWith({
+    expect(starter.startInterpreter).toHaveBeenLastCalledWith({
       workflowId: `run-${run.id}`,
       input: {
-        ...params,
         orgId,
+        templateKey: "blog-post-pipeline",
+        spec: blogPostPipelineSpec,
+        params,
         resumeFrom: {
-          step: "publish",
-          priorOutputs: { research: findings, write: draft },
+          channels: { research: findings, draft },
+          gateApproved: true,
         },
       },
     });
@@ -414,10 +446,10 @@ describe("POST /runs/:id/resume", () => {
 
     const res = await resume(jwt, prior.id);
     expect(res.statusCode, res.body).toBe(201);
-    expect(starter.startContentPipeline).toHaveBeenLastCalledWith(
+    expect(starter.startInterpreter).toHaveBeenLastCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({
-          resumeFrom: { step: "approval", priorOutputs: { research: findings } },
+          resumeFrom: { channels: { research: findings }, gateApproved: false },
         }),
       }),
     );
@@ -432,9 +464,14 @@ describe("POST /runs/:id/resume", () => {
     const run = runSchema.parse(res.json());
     expect(run.resumedFromRunId).toBe(prior.id);
 
-    const calls = vi.mocked(starter.startContentPipeline).mock.calls;
+    const calls = vi.mocked(starter.startInterpreter).mock.calls;
     const lastInput = calls[calls.length - 1]?.[0]?.input;
-    expect(lastInput).toEqual({ ...params, orgId });
+    expect(lastInput).toEqual({
+      orgId,
+      templateKey: "blog-post-pipeline",
+      spec: blogPostPipelineSpec,
+      params,
+    });
     expect(lastInput && "resumeFrom" in lastInput).toBe(false);
 
     const steps = await repos.activityLog.listStepsForRun({ orgId, runId: run.id });
@@ -444,14 +481,14 @@ describe("POST /runs/:id/resume", () => {
   it("409s a run that is not failed", async () => {
     const { jwt } = await signUpOwner(app);
     const pending = await startRun(jwt);
-    vi.mocked(starter.startContentPipeline).mockClear();
+    vi.mocked(starter.startInterpreter).mockClear();
 
     const res = await resume(jwt, pending.id);
     expect(res.statusCode).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe(
       "run_not_resumable",
     );
-    expect(starter.startContentPipeline).not.toHaveBeenCalled();
+    expect(starter.startInterpreter).not.toHaveBeenCalled();
   });
 
   it("404s a cross-org id, an unknown id, and a non-uuid id alike", async () => {
@@ -483,7 +520,7 @@ describe("POST /runs/:id/resume", () => {
       researchCompleted: true,
       approved: true,
     });
-    vi.mocked(starter.startContentPipeline).mockRejectedValue(
+    vi.mocked(starter.startInterpreter).mockRejectedValue(
       new Error("temporal unreachable"),
     );
 
@@ -498,5 +535,34 @@ describe("POST /runs/:id/resume", () => {
     const newest = page.items[0];
     expect(newest?.resumedFromRunId).toBe(prior.id);
     expect(newest?.status).toBe("failed");
+  });
+  it("resumes a legacy pre-template run (no definition) on the catalog blog spec", async () => {
+    const { jwt, orgId } = await signUpOwner(app);
+    // A pre-Unit-26 row: started by the retired hardcoded workflow, never
+    // pinned to a definition version.
+    const legacyId = crypto.randomUUID();
+    await repos.runs.createRun({
+      id: legacyId,
+      orgId,
+      workflowName: "contentPipeline",
+      temporalWorkflowId: `run-${legacyId}`,
+      status: "failed",
+      input: params,
+      error: "mock legacy failure",
+    });
+
+    const res = await resume(jwt, legacyId);
+    expect(res.statusCode, res.body).toBe(201);
+    const run = runSchema.parse(res.json());
+    expect(run.resumedFromRunId).toBe(legacyId);
+    expect(starter.startInterpreter).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          templateKey: "blog-post-pipeline",
+          spec: blogPostPipelineSpec,
+          params,
+        }),
+      }),
+    );
   });
 });

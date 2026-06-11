@@ -70,28 +70,7 @@ export const blogPostPipelineOutputSchema = publishReceiptSchema.extend({
 export type BlogPostPipelineOutput = z.infer<typeof blogPostPipelineOutputSchema>;
 
 /**
- * Terminal result of the contentPipeline workflow. Rejection and expiry are
- * graceful outcomes (discriminated union per code-standards), never workflow
- * failures — only exhausted retries or invalid input fail a run.
- */
-export const contentPipelineResultSchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("completed"),
-    output: blogPostPipelineOutputSchema,
-  }),
-  z.object({
-    status: z.literal("rejected"),
-    reviewerId: z.string().min(1),
-    decidedAt: z.iso.datetime(),
-  }),
-  z.object({
-    status: z.literal("expired"),
-  }),
-]);
-export type ContentPipelineResult = z.infer<typeof contentPipelineResultSchema>;
-
-/**
- * Steps the contentPipeline can be in, as reported by the RUN_STATE query.
+ * Steps a pipeline run can be in, as reported by the RUN_STATE query.
  * `approval` is the suspended gate, not a step kind (status.ts).
  */
 export const pipelineStepSchema = z.enum(["research", "approval", "write", "publish"]);

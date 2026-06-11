@@ -44,13 +44,17 @@ test("golden path: sign up → checklist → launch → stream → approve → c
   await page.getByRole("button", { name: "Skip" }).click();
   await expect(page.getByText("Skipped")).toBeVisible();
 
-  // 5. Configure and launch the first pipeline.
+  // 5. Configure and launch the first pipeline from the Workflow Library —
+  // the template card (pinned version chip) with its schema-generated form
+  // (Unit 26); the first template's form is open by default.
   await page.getByRole("link", { name: "Run your first pipeline" }).click();
   await page.waitForURL("**/workflows");
+  await expect(page.getByText("Blog Post Pipeline")).toBeVisible();
+  await expect(page.getByText(/^v\d+$/)).toBeVisible();
   await page.fill("#topic", "Durable AI pipelines for agencies");
   await page.fill("#keywords", "temporal, reliability");
   await page.selectOption("#tone", "technical");
-  await page.fill("#word-count", "300");
+  await page.fill("#wordCount", "300");
   await page.getByRole("button", { name: "Launch run" }).click();
 
   // 6. Run Detail goes live: the mock model's research summary streams in

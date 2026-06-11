@@ -1,10 +1,7 @@
 import { z } from "zod";
 
 import { runStatusSchema, stepKindSchema, stepStatusSchema } from "./status";
-import {
-  blogPostPipelineInputSchema,
-  blogPostPipelineOutputSchema,
-} from "./blog-pipeline";
+import { blogPostPipelineOutputSchema } from "./blog-pipeline";
 
 /**
  * Run-API resource contracts (Unit 13). The server serializes projection rows
@@ -19,7 +16,8 @@ export const runSchema = z.object({
   temporalWorkflowId: z.string().min(1),
   temporalRunId: z.string().min(1).nullable(),
   status: runStatusSchema,
-  input: blogPostPipelineInputSchema,
+  /** Template-shaped launch params (Unit 26) — render via the template's own schema. */
+  input: z.record(z.string(), z.unknown()),
   output: blogPostPipelineOutputSchema.nullable(),
   error: z.string().nullable(),
   /** The run this one was resumed from (Unit 22), if any. */

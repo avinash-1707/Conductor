@@ -3,16 +3,18 @@
 import {
   approvalListResponseSchema,
   approvalResourceSchema,
-  blogPostPipelineInputSchema,
+  launchRunRequestSchema,
   runDetailResponseSchema,
   runListResponseSchema,
   runSchema,
+  templateListResponseSchema,
   type ApprovalListResponse,
   type ApprovalResource,
-  type BlogPostPipelineInput,
+  type LaunchRunRequest,
   type RunDetailResponse,
   type RunListResponse,
   type RunResource,
+  type TemplateListResponse,
 } from "@conductor/shared";
 import { z } from "zod";
 import { SERVER_URL } from "./config";
@@ -80,6 +82,11 @@ async function apiFetch<T>(path: string, opts: Options<T>): Promise<T> {
 }
 
 export const api = {
+  templates: {
+    /** Workflow Library listing — also seeds the org's pinned definition rows. */
+    list: (): Promise<TemplateListResponse> =>
+      apiFetch(`/templates`, { schema: templateListResponseSchema }),
+  },
   runs: {
     list: (params?: { cursor?: string; limit?: number }): Promise<RunListResponse> => {
       const q = new URLSearchParams();
@@ -90,10 +97,11 @@ export const api = {
     },
     get: (id: string): Promise<RunDetailResponse> =>
       apiFetch(`/runs/${id}`, { schema: runDetailResponseSchema }),
-    create: (input: BlogPostPipelineInput): Promise<RunResource> =>
+    /** Launch a template run — params validated against the template's own schema. */
+    create: (input: LaunchRunRequest): Promise<RunResource> =>
       apiFetch(`/runs`, {
         method: "POST",
-        body: blogPostPipelineInputSchema.parse(input),
+        body: launchRunRequestSchema.parse(input),
         schema: runSchema,
       }),
     /** Resume a failed run from its last successful step — returns the new linked run. */

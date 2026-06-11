@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import type { RunDetailResponse, RunResource, TokenStreamEvent } from "@conductor/shared";
+import {
+  blogPostPipelineInputSchema,
+  type RunDetailResponse,
+  type RunResource,
+  type TokenStreamEvent,
+} from "@conductor/shared";
 import { api, ApiError } from "@/lib/api";
 import { useElapsed } from "@/lib/use-elapsed";
 import { useRunStream } from "@/lib/use-run-events";
@@ -91,6 +96,14 @@ export function RunDetail({ detail }: { detail: RunDetailResponse }) {
   const { run, steps } = detail;
   const nodes = useMemo(() => buildRailNodes(run, steps), [run, steps]);
 
+  // Launch params are template-shaped (Unit 26) — parse on read; the blog
+  // summary renders only when they match, future templates fall back to the
+  // run name (the inspector always shows the raw params).
+  const launch = useMemo(() => {
+    const parsed = blogPostPipelineInputSchema.safeParse(run.input);
+    return parsed.success ? parsed.data : undefined;
+  }, [run.input]);
+
   // Live LLM token streams, accumulated per step kind (Unit 20). Shown in the
   // inspector for a running step until its final output arrives on refetch.
   const [streams, setStreams] = useState<Record<string, { text: string; done: boolean }>>({});
@@ -138,7 +151,9 @@ export function RunDetail({ detail }: { detail: RunDetailResponse }) {
       {/* Summary */}
       <div className="flex flex-col gap-4 rounded-lg border border-line-soft bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-ink">{run.input.topic}</p>
+          <p className="text-sm text-ink">
+            {launch?.topic ?? workflowLabel(run.workflowName)}
+          </p>
           <StatusBadge status={run.status} />
         </div>
         {run.resumedFromRunId && (
@@ -153,8 +168,11 @@ export function RunDetail({ detail }: { detail: RunDetailResponse }) {
           </p>
         )}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Meta label="Tone" value={run.input.tone} />
-          <Meta label="Target words" value={String(run.input.wordCount)} />
+          <Meta label="Tone" value={launch?.tone ?? "—"} />
+          <Meta
+            label="Target words"
+            value={launch ? String(launch.wordCount) : "—"}
+          />
           <Meta
             label="Started"
             value={run.startedAt ? relativeTime(run.startedAt) : "—"}

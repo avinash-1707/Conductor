@@ -134,10 +134,11 @@ note "OpenRouter key stored (…$(jq -r '.last4' <<<"$key_status")) — encrypte
 log "3/7 starting a Blog Post Pipeline run: '${TOPIC}'"
 keywords_json="$(jq -nc --arg k "$KEYWORDS" \
   '$k | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
+# Unit 26: launches are template-shaped — { templateKey, params }.
 run="$(api POST /runs "$(jq -nc \
   --arg topic "$TOPIC" --argjson keywords "$keywords_json" --arg tone "$TONE" \
   --argjson wc "$WORD_COUNT" --arg approver "$USER_ID" \
-  '{topic:$topic, keywords:$keywords, tone:$tone, wordCount:$wc, approverId:$approver}')" \
+  '{templateKey:"blog-post-pipeline", params:{topic:$topic, keywords:$keywords, tone:$tone, wordCount:$wc, approverId:$approver}}')" \
   "$JWT")"
 RUN_ID="$(jq -r '.id' <<<"$run")"
 WORKFLOW_ID="$(jq -r '.temporalWorkflowId' <<<"$run")"

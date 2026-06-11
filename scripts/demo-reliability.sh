@@ -32,7 +32,7 @@ log() { printf '\n\033[1;35m[demo]\033[0m %s\n' "$*"; }
 
 # --- preflight ---------------------------------------------------------------
 command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required"; exit 1; }
-: "${CONDUCTOR_ORG_ID:?Set CONDUCTOR_ORG_ID to an org with an OpenRouter key configured (runs execute on the org's key since Unit 12)}"
+: "${CONDUCTOR_ORG_ID:?Set CONDUCTOR_ORG_ID to an org with an OpenRouter key configured (runs execute on the org key since Unit 12)}"
 host="${TEMPORAL_ADDRESS%:*}"; port="${TEMPORAL_ADDRESS##*:}"
 if ! (exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null; then
   echo "Temporal not reachable at ${TEMPORAL_ADDRESS}."

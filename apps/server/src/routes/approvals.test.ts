@@ -26,7 +26,7 @@ const checks = {
 };
 
 const gateway: RunGateway = {
-  startContentPipeline: vi.fn(),
+  startInterpreter: vi.fn(),
   signalApprovalDecision: vi.fn(),
 };
 
