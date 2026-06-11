@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Settings,
   Users,
+  Waypoints,
   Workflow,
   type LucideProps,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const NAV: NavItem[] = [
   { href: "/runs", label: "Runs", icon: LayoutList },
   { href: "/approvals", label: "Approvals", icon: CheckSquare },
   { href: "/workflows", label: "Workflows", icon: Workflow },
+  { href: "/canvas", label: "Canvas", icon: Waypoints },
   { href: "/users", label: "Users", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

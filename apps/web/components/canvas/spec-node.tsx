@@ -41,19 +41,31 @@ function configLabel(node: GraphNode): { text: string; custom: boolean } {
   };
 }
 
-export const SpecNode = memo(function SpecNode({ data }: NodeProps<SpecFlowNode>) {
-  const { node, status } = data;
+export const SpecNode = memo(function SpecNode({
+  data,
+  selected,
+  isConnectable,
+}: NodeProps<SpecFlowNode>) {
+  const { node, status, invalid } = data;
   const entry = activityRegistry[node.type];
   const Icon = ICONS[node.type];
   const config = configLabel(node);
 
+  // Frame priority: a validation issue outranks status tint; selection adds
+  // the accent ring on top (editor only — the viewer disables selection).
+  const border = invalid
+    ? "border-failed/50"
+    : status
+      ? statusBorderClass(status)
+      : "border-line-soft";
+
   return (
     <div
-      className={`w-[232px] rounded-lg border bg-surface px-3.5 py-3 shadow-[var(--shadow-card)] transition-colors duration-150 ${
-        status ? statusBorderClass(status) : "border-line-soft"
+      className={`w-[232px] rounded-lg border bg-surface px-3.5 py-3 shadow-[var(--shadow-card)] transition-colors duration-150 ${border} ${
+        selected ? "ring-1 ring-accent/40 border-accent/60" : ""
       }`}
     >
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
 
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
@@ -84,7 +96,7 @@ export const SpecNode = memo(function SpecNode({ data }: NodeProps<SpecFlowNode>
         </div>
       )}
 
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Handle type="source" position={Position.Right} isConnectable={isConnectable} />
     </div>
   );
 });

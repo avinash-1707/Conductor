@@ -5,16 +5,14 @@ import {
   Background,
   BackgroundVariant,
   MarkerType,
-  Panel,
   ReactFlow,
   ReactFlowProvider,
-  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Maximize, Minus, Plus } from "lucide-react";
 import type { GraphSpec } from "@conductor/shared";
 import { layoutSpec, type NodeStatus } from "./layout";
 import { SpecNode } from "./spec-node";
+import { CanvasControls, DEFAULT_FIT_VIEW } from "./canvas-controls";
 
 /**
  * Read-only graph_spec canvas (Unit 30). Pan + zoom only — nodes are fixed,
@@ -26,7 +24,7 @@ import { SpecNode } from "./spec-node";
 
 const nodeTypes = { spec: SpecNode };
 
-const defaultEdgeOptions = {
+export const SPEC_EDGE_OPTIONS = {
   style: { stroke: "var(--border-default)", strokeWidth: 1.5 },
   markerEnd: {
     type: MarkerType.ArrowClosed,
@@ -35,44 +33,6 @@ const defaultEdgeOptions = {
     height: 18,
   },
 };
-
-const fitViewOptions = { padding: 0.15, maxZoom: 1 };
-
-const CONTROL_BTN =
-  "grid h-7 w-7 place-items-center rounded-md border border-line bg-surface/80 text-muted backdrop-blur transition-colors duration-150 hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
-
-/** Minimal themed zoom strip — React Flow's stock controls are unthemed. */
-function CanvasControls() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
-  return (
-    <Panel position="bottom-left" className="flex gap-1">
-      <button
-        type="button"
-        aria-label="Zoom in"
-        className={CONTROL_BTN}
-        onClick={() => void zoomIn({ duration: 0 })}
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Zoom out"
-        className={CONTROL_BTN}
-        onClick={() => void zoomOut({ duration: 0 })}
-      >
-        <Minus className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Fit view"
-        className={CONTROL_BTN}
-        onClick={() => void fitView(fitViewOptions)}
-      >
-        <Maximize className="h-3.5 w-3.5" />
-      </button>
-    </Panel>
-  );
-}
 
 export function SpecCanvas({
   spec,
@@ -95,9 +55,9 @@ export function SpecCanvas({
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          defaultEdgeOptions={defaultEdgeOptions}
+          defaultEdgeOptions={SPEC_EDGE_OPTIONS}
           fitView
-          fitViewOptions={fitViewOptions}
+          fitViewOptions={DEFAULT_FIT_VIEW}
           minZoom={0.4}
           maxZoom={1.4}
           panOnScroll

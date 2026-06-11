@@ -20,12 +20,14 @@ export type SpecNodeData = {
   node: GraphNode;
   /** Live step status for run-pinned views; absent on neutral spec views. */
   status?: NodeStatus;
+  /** Editor-only (Unit 31): the node carries a validation issue. */
+  invalid?: boolean;
 };
 
 export type SpecFlowNode = Node<SpecNodeData, "spec">;
 
 /** Horizontal rhythm: node width (w-[232px]) + breathing room for the edge. */
-const X_GAP = 284;
+export const X_GAP = 284;
 
 export function layoutSpec(
   spec: GraphSpec,
