@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { graphSpecSchema, type GraphSpec } from "@conductor/shared";
 import type { Db } from "../client";
 import { workflowDefinitions } from "../schema";
@@ -102,6 +102,34 @@ export function createDefinitionsRepo(db: Db) {
           ),
         )
         .orderBy(desc(workflowDefinitions.version));
+    },
+
+    /**
+     * The latest version of each named definition, alphabetical, name-keyset
+     * paginated (Unit 32 — the canvas "Open" picker). DISTINCT ON (name) with
+     * (name asc, version desc) ordering picks the newest row per name.
+     */
+    async listLatestDefinitions(args: {
+      orgId: string;
+      limit: number;
+      cursorName?: string;
+    }): Promise<{ items: Definition[]; nextCursorName: string | null }> {
+      const rows = await db
+        .selectDistinctOn([workflowDefinitions.name])
+        .from(workflowDefinitions)
+        .where(
+          and(
+            eq(workflowDefinitions.orgId, args.orgId),
+            args.cursorName ? gt(workflowDefinitions.name, args.cursorName) : undefined,
+          ),
+        )
+        .orderBy(asc(workflowDefinitions.name), desc(workflowDefinitions.version))
+        .limit(args.limit + 1);
+      const items = rows.slice(0, args.limit);
+      return {
+        items,
+        nextCursorName: rows.length > args.limit ? items[items.length - 1]!.name : null,
+      };
     },
 
     async listDefinitions(args: { orgId: string }): Promise<Definition[]> {

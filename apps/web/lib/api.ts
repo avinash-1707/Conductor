@@ -3,8 +3,11 @@
 import {
   approvalListResponseSchema,
   approvalResourceSchema,
+  definitionListResponseSchema,
   definitionResourceSchema,
+  launchDefinitionRunSchema,
   launchRunRequestSchema,
+  saveDefinitionRequestSchema,
   modelCatalogResponseSchema,
   orgModelSettingsResponseSchema,
   runDetailResponseSchema,
@@ -14,8 +17,11 @@ import {
   updateOrgModelSettingsSchema,
   type ApprovalListResponse,
   type ApprovalResource,
+  type BlogPostPipelineInput,
+  type DefinitionListResponse,
   type DefinitionResource,
   type LaunchRunRequest,
+  type SaveDefinitionRequest,
   type ModelCatalogResponse,
   type OrgModelSettings,
   type OrgModelSettingsResponse,
@@ -99,6 +105,31 @@ export const api = {
     /** A pinned workflow_definitions version row — the canvas viewer's spec source. */
     get: (id: string): Promise<DefinitionResource> =>
       apiFetch(`/definitions/${id}`, { schema: definitionResourceSchema }),
+    /** Latest version per name; pass `name` for that workflow's full history. */
+    list: (params?: { name?: string; cursor?: string; limit?: number }): Promise<DefinitionListResponse> => {
+      const q = new URLSearchParams();
+      if (params?.name) q.set("name", params.name);
+      if (params?.cursor) q.set("cursor", params.cursor);
+      if (params?.limit) q.set("limit", String(params.limit));
+      const qs = q.toString();
+      return apiFetch(`/definitions${qs ? `?${qs}` : ""}`, {
+        schema: definitionListResponseSchema,
+      });
+    },
+    /** Save the drawn spec as the next immutable version of spec.name. */
+    create: (input: SaveDefinitionRequest): Promise<DefinitionResource> =>
+      apiFetch(`/definitions`, {
+        method: "POST",
+        body: saveDefinitionRequestSchema.parse(input),
+        schema: definitionResourceSchema,
+      }),
+    /** Launch a run pinned to this definition version (engine params contract). */
+    launchRun: (id: string, params: BlogPostPipelineInput): Promise<RunResource> =>
+      apiFetch(`/definitions/${id}/runs`, {
+        method: "POST",
+        body: launchDefinitionRunSchema.parse({ params }),
+        schema: runSchema,
+      }),
   },
   runs: {
     list: (params?: { cursor?: string; limit?: number }): Promise<RunListResponse> => {

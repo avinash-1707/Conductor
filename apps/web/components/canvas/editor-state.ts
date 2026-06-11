@@ -1,12 +1,13 @@
 import type { Edge } from "@xyflow/react";
 import {
   GRAPH_SPEC_VERSION,
+  executionOrder,
   graphSpecSchema,
   type GraphNode,
   type GraphNodeType,
   type GraphSpec,
 } from "@conductor/shared";
-import type { SpecFlowNode } from "./layout";
+import { X_GAP, type SpecFlowNode } from "./layout";
 
 /**
  * Pure editor logic (Unit 31). The editor never owns its own validator: the
@@ -110,6 +111,51 @@ export function withNodeId(
       target: e.target === oldId ? newId : e.target,
     })),
   };
+}
+
+/**
+ * A saved spec opened back into the editor (Unit 32): chain-ordered layout
+ * like the viewer, but editable nodes (no enter animation — opening is not
+ * adding). Editing a reopened version saves as the NEXT version.
+ */
+export function editorGraphFromSpec(spec: GraphSpec): {
+  nodes: SpecFlowNode[];
+  edges: Edge[];
+} {
+  const nodes = executionOrder(spec).map((node, index) => ({
+    id: node.id,
+    type: "spec" as const,
+    position: { x: index * X_GAP, y: 0 },
+    data: { node },
+  }));
+  const edges = spec.edges.map((edge) => ({
+    id: `${edge.from}->${edge.to}`,
+    source: edge.from,
+    target: edge.to,
+  }));
+  return { nodes, edges };
+}
+
+/**
+ * Semantic spec equality (Unit 32 dirty-tracking). Stored JSONB normalizes key
+ * order and the editor's insertion order can differ from chain order, so both
+ * sides compare by execution order — which, with the name, fully determines a
+ * valid v1 (linear) spec.
+ */
+export function specsEqual(a: GraphSpec, b: GraphSpec): boolean {
+  if (a.name !== b.name) return false;
+  const orderA = executionOrder(a);
+  const orderB = executionOrder(b);
+  if (orderA.length !== orderB.length) return false;
+  return orderA.every((node, i) => {
+    const other = orderB[i]!;
+    return (
+      node.id === other.id &&
+      node.type === other.type &&
+      JSON.stringify([...Object.entries(node.config)].sort()) ===
+        JSON.stringify([...Object.entries(other.config)].sort())
+    );
+  });
 }
 
 export type EditorIssue = {

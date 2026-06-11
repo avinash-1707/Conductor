@@ -35,7 +35,7 @@ const listQuerySchema = z.object({
 
 const idParamSchema = z.object({ id: z.uuid() });
 
-function toRunResource(run: Run): RunResource {
+export function toRunResource(run: Run): RunResource {
   return {
     id: run.id,
     workflowName: run.workflowName,

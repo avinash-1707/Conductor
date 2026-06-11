@@ -108,7 +108,7 @@ export async function buildApp(opts: {
       modelSettingsRoutes(opts.modelCatalog ? { catalog: opts.modelCatalog } : undefined),
     );
     await app.register(templateRoutes());
-    await app.register(definitionRoutes());
+    await app.register(definitionRoutes(opts.temporal));
     if (opts.temporal) {
       await app.register(runRoutes(opts.temporal));
       await app.register(approvalRoutes(opts.temporal));
