@@ -34,7 +34,19 @@ export function createAuth(emailSender: EmailSender = logEmailSender) {
         }
       : undefined,
     plugins: [
-      organization(),
+      organization({
+        // Invitation delivery (Unit 27): the accept link is the canonical
+        // /accept-invitation/<id> page; dev transport logs it, a real provider
+        // later slots in behind the same EmailSender interface.
+        async sendInvitationEmail(data) {
+          const acceptUrl = `${env.WEB_ORIGIN}/accept-invitation/${data.id}`;
+          await emailSender.send({
+            to: data.email,
+            subject: `You're invited to ${data.organization.name} on Conductor`,
+            text: `${data.inviter.user.name || data.inviter.user.email} invited you to the ${data.organization.name} organization. Accept: ${acceptUrl}`,
+          });
+        },
+      }),
       emailOTP({
         otpLength: 6,
         expiresIn: 300,

@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import { signUp } from "@/lib/auth-client";
 import { clearApiJwt } from "@/lib/jwt";
+import { safeNextPath } from "@/lib/next-param";
 import { Button, Card, Field, Input } from "@/components/app/ui";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // An invitee arriving from an accept link must not be routed into creating
+  // their own org — `next` (internal-only) wins over the create-org default.
+  const next = safeNextPath(searchParams.get("next"));
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,8 +31,9 @@ export default function SignupPage() {
       return;
     }
     clearApiJwt();
-    // No org yet — the next step names the organization.
-    router.replace("/create-org");
+    // No org yet — the next step names the organization (unless an
+    // invitation link brought them here).
+    router.replace(next ?? "/create-org");
   }
 
   return (
@@ -82,10 +88,22 @@ export default function SignupPage() {
 
       <p className="mt-6 text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link href="/login" className="text-accent hover:underline">
+        <Link
+          href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+          className="text-accent hover:underline"
+        >
           Sign in
         </Link>
       </p>
     </Card>
+  );
+}
+
+export default function SignupPage() {
+  // useSearchParams requires a Suspense boundary (same pattern as /approvals).
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   );
 }

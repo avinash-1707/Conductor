@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../app";
-import { auth } from "./auth";
+import { auth, createAuth } from "./auth";
+import type { AuthEmail, EmailSender } from "./email";
 
 /**
  * Integration tests against the local Postgres (migration #1 applied). Exercise
@@ -146,5 +147,59 @@ describe("requireOwner", () => {
       headers: { authorization: `Bearer ${ownerJwt}` },
     });
     expect(allowed.statusCode, allowed.body).toBe(200);
+  });
+});
+
+describe("invitation email (Unit 27)", () => {
+  it("delivers the accept link through the injected EmailSender", async () => {
+    const sent: AuthEmail[] = [];
+    const capturing: EmailSender = {
+      async send(email) {
+        sent.push(email);
+      },
+    };
+    const inviteApp = await buildApp({ checks, auth: createAuth(capturing) });
+    await inviteApp.ready();
+    try {
+      // Owner with an active org (same flow as the requireOwner test).
+      const email = `u_${randomUUID()}@example.com`;
+      const signUpRes = await inviteApp.inject({
+        method: "POST",
+        url: "/api/auth/sign-up/email",
+        payload: { email, password: "Sup3r-secret-pw", name: "Owner" },
+      });
+      expect(signUpRes.statusCode, signUpRes.body).toBe(200);
+      const sessionToken = signUpRes.headers["set-auth-token"] as string;
+      const created = await inviteApp.inject({
+        method: "POST",
+        url: "/api/auth/organization/create",
+        headers: { authorization: `Bearer ${sessionToken}` },
+        payload: { name: "Invite Co", slug: `invite-${randomUUID().slice(0, 8)}` },
+      });
+      expect(created.statusCode, created.body).toBe(200);
+      const orgId = (created.json() as { id: string }).id;
+      await inviteApp.inject({
+        method: "POST",
+        url: "/api/auth/organization/set-active",
+        headers: { authorization: `Bearer ${sessionToken}` },
+        payload: { organizationId: orgId },
+      });
+
+      const invited = await inviteApp.inject({
+        method: "POST",
+        url: "/api/auth/organization/invite-member",
+        headers: { authorization: `Bearer ${sessionToken}` },
+        payload: { email: `reviewer_${randomUUID()}@example.com`, role: "member" },
+      });
+      expect(invited.statusCode, invited.body).toBe(200);
+      const invitationId = (invited.json() as { id: string }).id;
+
+      // The email carries the canonical accept link for exactly this invitation.
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.text).toContain(`/accept-invitation/${invitationId}`);
+      expect(sent[0]?.subject).toContain("Invite Co");
+    } finally {
+      await inviteApp.close();
+    }
   });
 });

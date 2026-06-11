@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import { signIn } from "@/lib/auth-client";
 import { clearApiJwt } from "@/lib/jwt";
+import { safeNextPath } from "@/lib/next-param";
 import { Button, Card, Field, Input } from "@/components/app/ui";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where to land after auth (e.g. an invitation accept link) — internal only.
+  const next = safeNextPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +29,7 @@ export default function LoginPage() {
       return;
     }
     clearApiJwt();
-    router.replace("/runs");
+    router.replace(next ?? "/runs");
   }
 
   return (
@@ -68,10 +72,22 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-muted">
         New to Conductor?{" "}
-        <Link href="/signup" className="text-accent hover:underline">
+        <Link
+          href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+          className="text-accent hover:underline"
+        >
           Create an account
         </Link>
       </p>
     </Card>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams requires a Suspense boundary (same pattern as /approvals).
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
