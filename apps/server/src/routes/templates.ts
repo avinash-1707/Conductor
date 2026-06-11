@@ -1,10 +1,10 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import {
   templateCatalog,
   templateKeySchema,
   type TemplateListResponse,
 } from "@conductor/shared";
-import { ForbiddenError } from "../errors";
+import { activeOrgId } from "../lib/active-org";
 import { ensureTemplateDefinition } from "../lib/templates";
 
 /**
@@ -15,12 +15,6 @@ import { ensureTemplateDefinition } from "../lib/templates";
  * data lives in the client's own catalog import; this endpoint's job is the
  * pinning info.
  */
-
-function activeOrgId(req: FastifyRequest): string {
-  const orgId = req.auth?.activeOrganizationId;
-  if (!orgId) throw new ForbiddenError("No active organization");
-  return orgId;
-}
 
 export function templateRoutes(): FastifyPluginAsync {
   return async (app) => {

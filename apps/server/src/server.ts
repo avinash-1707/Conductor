@@ -27,8 +27,11 @@ async function main(): Promise<void> {
     try {
       await app.close();
       await deps.close();
-    } finally {
       process.exit(0);
+    } catch (err) {
+      // A failed close must be visible (and exit non-zero), never swallowed.
+      logger.error({ err }, "graceful shutdown failed");
+      process.exit(1);
     }
   };
   process.on("SIGTERM", () => void shutdown("SIGTERM"));

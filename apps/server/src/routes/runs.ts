@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
   definitionParametersSchema,
@@ -11,7 +11,8 @@ import {
   type TemplateKey,
 } from "@conductor/shared";
 import type { Run, Step } from "@conductor/db";
-import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
+import { AppError, NotFoundError, ValidationError } from "../errors";
+import { activeOrgId } from "../lib/active-org";
 import { decodeKeysetCursor, encodeKeysetCursor } from "../lib/keyset-cursor";
 import { buildResumePlan } from "../lib/resume-plan";
 import { ensureTemplateDefinition } from "../lib/templates";
@@ -63,12 +64,6 @@ function toStepResource(step: Step): RunStepResource {
     startedAt: step.startedAt?.toISOString() ?? null,
     completedAt: step.completedAt?.toISOString() ?? null,
   };
-}
-
-function activeOrgId(req: FastifyRequest): string {
-  const orgId = req.auth?.activeOrganizationId;
-  if (!orgId) throw new ForbiddenError("No active organization");
-  return orgId;
 }
 
 export function runRoutes(temporal: RunGateway): FastifyPluginAsync {

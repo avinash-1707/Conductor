@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { ForbiddenError, ValidationError } from "../errors";
+import { ValidationError } from "../errors";
+import { activeOrgId } from "../lib/active-org";
 import { encryptApiKey } from "../secrets";
-import * as apiKeysRepo from "../repos/api-keys";
+import { repos } from "../repos/index";
 
 /**
  * Org OpenRouter API-key management (architecture invariant 12). The key is
@@ -25,12 +26,11 @@ export const apiKeyRoutes: FastifyPluginAsync = async (app) => {
       if (!parsed.success) {
         throw new ValidationError("A valid OpenRouter API key is required");
       }
-      const orgId = req.auth?.activeOrganizationId;
-      if (!orgId) throw new ForbiddenError("No active organization");
+      const orgId = activeOrgId(req);
 
       const { apiKey } = parsed.data;
       const last4 = apiKey.slice(-4);
-      await apiKeysRepo.upsertOrgApiKey({
+      await repos.apiKeys.upsertOrgApiKey({
         orgId,
         ciphertext: encryptApiKey(apiKey),
         last4,
@@ -43,9 +43,8 @@ export const apiKeyRoutes: FastifyPluginAsync = async (app) => {
     "/orgs/api-key",
     { preHandler: (req, reply) => app.requireSession(req, reply) },
     async (req) => {
-      const orgId = req.auth?.activeOrganizationId;
-      if (!orgId) throw new ForbiddenError("No active organization");
-      const row = await apiKeysRepo.findOrgApiKey({ orgId });
+      const orgId = activeOrgId(req);
+      const row = await repos.apiKeys.findOrgApiKey({ orgId });
       return { configured: Boolean(row), last4: row?.last4 ?? null };
     },
   );

@@ -8,6 +8,7 @@ import {
 } from "@conductor/shared";
 import type { Approval } from "@conductor/db";
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
+import { activeOrgId } from "../lib/active-org";
 import { decodeKeysetCursor, encodeKeysetCursor } from "../lib/keyset-cursor";
 import { repos } from "../repos/index";
 import type { RunGateway } from "../temporal";
@@ -39,12 +40,6 @@ function toApprovalResource(approval: Approval): ApprovalResource {
     decidedAt: approval.decidedAt?.toISOString() ?? null,
     createdAt: approval.createdAt.toISOString(),
   };
-}
-
-function activeOrgId(req: FastifyRequest): string {
-  const orgId = req.auth?.activeOrganizationId;
-  if (!orgId) throw new ForbiddenError("No active organization");
-  return orgId;
 }
 
 export function approvalRoutes(temporal: RunGateway): FastifyPluginAsync {
