@@ -9,6 +9,7 @@ import { Button, Card, Field, Spinner, Input } from "@/components/app/ui";
 import { Skeleton, ErrorState } from "@/components/app/view-state";
 import { useToast } from "@/components/app/toast";
 import { ModelSelect } from "@/components/app/model-select";
+import { RoleChip } from "@/components/app/role-chip";
 
 /**
  * Org settings (completed in Unit 27): org profile, members with roles and
@@ -307,20 +308,6 @@ function ModelsCard({ isOwner }: { isOwner: boolean }) {
         </form>
       )}
     </Card>
-  );
-}
-
-function RoleChip({ role }: { role: string }) {
-  return (
-    <span
-      className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] ${
-        role === "owner"
-          ? "border-accent/40 text-accent"
-          : "border-line-soft text-muted"
-      }`}
-    >
-      {role}
-    </span>
   );
 }
 

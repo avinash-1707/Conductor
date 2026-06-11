@@ -13,6 +13,7 @@ function titleFor(pathname: string): string {
   if (pathname.startsWith("/runs")) return "Runs";
   if (pathname.startsWith("/approvals")) return "Approvals";
   if (pathname.startsWith("/workflows")) return "Workflows";
+  if (pathname.startsWith("/users")) return "Users";
   if (pathname.startsWith("/settings")) return "Settings";
   return "Conductor";
 }

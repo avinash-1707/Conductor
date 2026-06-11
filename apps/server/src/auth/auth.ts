@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer, emailOTP, jwt, organization } from "better-auth/plugins";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import * as schema from "@conductor/db/schema";
 import { env } from "../env";
@@ -15,12 +17,87 @@ import { logEmailSender, type EmailSender } from "./email";
  */
 const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 
+/**
+ * The org a fresh session should open in:
+ * 1. the user's oldest membership, when one exists;
+ * 2. otherwise a pending, unexpired invitation addressed to the user's email
+ *    is auto-accepted (the same member-insert + status flip Better Auth's
+ *    acceptInvitation performs) — an invited user logs straight into the org
+ *    that invited them, never through /create-org;
+ * 3. otherwise null — only genuinely org-less users see the create-org page.
+ */
+async function defaultSessionOrg(userId: string): Promise<string | null> {
+  const membership = await db
+    .select({ organizationId: schema.member.organizationId })
+    .from(schema.member)
+    .where(eq(schema.member.userId, userId))
+    .orderBy(asc(schema.member.createdAt))
+    .limit(1);
+  if (membership[0]) return membership[0].organizationId;
+
+  const users = await db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
+    .limit(1);
+  const email = users[0]?.email;
+  if (!email) return null;
+
+  const invites = await db
+    .select({
+      id: schema.invitation.id,
+      organizationId: schema.invitation.organizationId,
+      role: schema.invitation.role,
+    })
+    .from(schema.invitation)
+    .where(
+      and(
+        eq(sql`lower(${schema.invitation.email})`, email.toLowerCase()),
+        eq(schema.invitation.status, "pending"),
+        gt(schema.invitation.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(asc(schema.invitation.createdAt))
+    .limit(1);
+  const invite = invites[0];
+  if (!invite) return null;
+
+  await db.insert(schema.member).values({
+    id: randomUUID(),
+    organizationId: invite.organizationId,
+    userId,
+    role: invite.role ?? "member",
+    createdAt: new Date(),
+  });
+  await db
+    .update(schema.invitation)
+    .set({ status: "accepted" })
+    .where(eq(schema.invitation.id, invite.id));
+  return invite.organizationId;
+}
+
 export function createAuth(emailSender: EmailSender = logEmailSender) {
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_ORIGIN],
     database: drizzleAdapter(db, { provider: "pg", schema }),
+    databaseHooks: {
+      session: {
+        create: {
+          // A fresh login starts with no active org, which used to bounce
+          // every returning user to /create-org. Default it (see
+          // defaultSessionOrg); a resolution failure must never block login —
+          // the user just lands on /create-org as before.
+          before: async (session) => {
+            const activeOrganizationId = await defaultSessionOrg(session.userId).catch(
+              () => null,
+            );
+            return { data: { ...session, activeOrganizationId } };
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,

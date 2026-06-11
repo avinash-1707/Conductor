@@ -27,6 +27,24 @@ export default function CreateOrgPage() {
     if (!isPending && !session) router.replace("/login");
   }, [isPending, session, router]);
 
+  // Creating an org is only for users who have none: anyone who already
+  // belongs to one (a session predating the server-side default, or a direct
+  // visit) is activated into their first org and sent home instead.
+  useEffect(() => {
+    if (isPending || !session || session.session.activeOrganizationId) return;
+    let cancelled = false;
+    void organization.list().then(async (orgs) => {
+      const first = orgs.data?.[0];
+      if (cancelled || !first) return;
+      await organization.setActive({ organizationId: first.id });
+      clearApiJwt();
+      router.replace("/runs");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isPending, session, router]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);

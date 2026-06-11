@@ -36,7 +36,18 @@ export default function AcceptInvitationPage() {
     void (async () => {
       const accepted = await organization.acceptInvitation({ invitationId });
       if (accepted.error || !accepted.data) {
-        // Expired, revoked, already used, or addressed to a different email.
+        // The login-time auto-accept usually consumed this invitation already
+        // (a fresh sign-up through the link, or a re-clicked email link) —
+        // Better Auth then reports it "not found". The session is the
+        // arbiter: if the user is in an org, the join already happened, so
+        // this is success, not an error.
+        if (session.session.activeOrganizationId) {
+          clearApiJwt();
+          router.replace("/runs");
+          return;
+        }
+        // Expired, revoked, already used by someone else, or addressed to a
+        // different email.
         setError(
           "This invitation can't be accepted. It may have expired or been sent to a different email address.",
         );

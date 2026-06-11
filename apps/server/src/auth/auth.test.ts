@@ -150,6 +150,127 @@ describe("requireOwner", () => {
   });
 });
 
+describe("session default org (returning login)", () => {
+  it("a fresh sign-in lands in the user's existing org without set-active", async () => {
+    // Sign up, create an org (sign-up's session predates the membership).
+    const owner = await signUp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/auth/organization/create",
+      headers: { authorization: `Bearer ${owner.sessionToken}` },
+      payload: { name: "Acme", slug: `acme-${randomUUID().slice(0, 8)}` },
+    });
+    expect(created.statusCode, created.body).toBe(200);
+    const orgId = (created.json() as { id: string }).id;
+
+    // A brand-new sign-in session must carry the org automatically — the
+    // session-create hook defaults to the oldest membership, so returning
+    // users never see /create-org again.
+    const signIn = await app.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      payload: { email: owner.email, password: "Sup3r-secret-pw" },
+    });
+    expect(signIn.statusCode, signIn.body).toBe(200);
+    const freshToken =
+      (signIn.headers["set-auth-token"] as string | undefined) ??
+      (signIn.json() as { token?: string }).token;
+    expect(freshToken).toBeTruthy();
+
+    const me = await app.inject({
+      method: "GET",
+      url: "/__me",
+      headers: { authorization: `Bearer ${await mintJwt(freshToken!)}` },
+    });
+    expect(me.statusCode, me.body).toBe(200);
+    expect((me.json() as { activeOrganizationId: string | null }).activeOrganizationId).toBe(
+      orgId,
+    );
+  });
+
+  it("an invited user is auto-joined to the inviting org at sign-up", async () => {
+    // Owner with an active org invites a fresh email.
+    const owner = await signUp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/auth/organization/create",
+      headers: { authorization: `Bearer ${owner.sessionToken}` },
+      payload: { name: "Acme", slug: `acme-${randomUUID().slice(0, 8)}` },
+    });
+    expect(created.statusCode, created.body).toBe(200);
+    const orgId = (created.json() as { id: string }).id;
+    await app.inject({
+      method: "POST",
+      url: "/api/auth/organization/set-active",
+      headers: { authorization: `Bearer ${owner.sessionToken}` },
+      payload: { organizationId: orgId },
+    });
+
+    const inviteeEmail = `invitee_${randomUUID()}@example.com`;
+    const invited = await app.inject({
+      method: "POST",
+      url: "/api/auth/organization/invite-member",
+      headers: { authorization: `Bearer ${owner.sessionToken}` },
+      payload: { email: inviteeEmail, role: "member" },
+    });
+    expect(invited.statusCode, invited.body).toBe(200);
+
+    // The invitee signs up WITHOUT touching the accept link: the
+    // session-create hook accepts the pending invitation, so they log
+    // straight into the org as a member.
+    const signUpRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      payload: { email: inviteeEmail, password: "Sup3r-secret-pw", name: "Invitee" },
+    });
+    expect(signUpRes.statusCode, signUpRes.body).toBe(200);
+    const inviteeToken =
+      (signUpRes.headers["set-auth-token"] as string | undefined) ??
+      (signUpRes.json() as { token?: string }).token;
+
+    const me = await app.inject({
+      method: "GET",
+      url: "/__me",
+      headers: { authorization: `Bearer ${await mintJwt(inviteeToken!)}` },
+    });
+    expect(me.statusCode, me.body).toBe(200);
+    expect((me.json() as { activeOrganizationId: string | null }).activeOrganizationId).toBe(
+      orgId,
+    );
+
+    // Joined as a member (the invitation's role), not an owner.
+    const owned = await app.inject({
+      method: "GET",
+      url: "/__owner",
+      headers: { authorization: `Bearer ${await mintJwt(inviteeToken!)}` },
+    });
+    expect(owned.statusCode).toBe(403);
+  });
+
+  it("a sign-in by a user with no org still carries no active org", async () => {
+    const user = await signUp();
+    const signIn = await app.inject({
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      payload: { email: user.email, password: "Sup3r-secret-pw" },
+    });
+    expect(signIn.statusCode, signIn.body).toBe(200);
+    const freshToken =
+      (signIn.headers["set-auth-token"] as string | undefined) ??
+      (signIn.json() as { token?: string }).token;
+
+    const me = await app.inject({
+      method: "GET",
+      url: "/__me",
+      headers: { authorization: `Bearer ${await mintJwt(freshToken!)}` },
+    });
+    expect(me.statusCode, me.body).toBe(200);
+    expect(
+      (me.json() as { activeOrganizationId: string | null }).activeOrganizationId,
+    ).toBeNull();
+  });
+});
+
 describe("invitation email (Unit 27)", () => {
   it("delivers the accept link through the injected EmailSender", async () => {
     const sent: AuthEmail[] = [];
