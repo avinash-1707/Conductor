@@ -35,6 +35,8 @@ export const apiKeyRoutes: FastifyPluginAsync = async (app) => {
         ciphertext: encryptApiKey(apiKey),
         last4,
       });
+      // Golden-path instrumentation (Unit 29). Never the key — only the event.
+      req.log.info({ event: "golden_path.key_configured", orgId }, "org key configured");
       return { ok: true, last4 };
     },
   );

@@ -114,7 +114,8 @@ export function TemplateLaunchForm({ template }: { template: TemplateDefinition 
             >
               <Input
                 id={field.name}
-                required
+                // Optional csv lists (e.g. secondary keywords) may stay empty.
+                required={field.kind === "text" || !field.optional}
                 maxLength={field.kind === "text" ? field.maxLength : undefined}
                 placeholder={field.placeholder}
                 value={value}

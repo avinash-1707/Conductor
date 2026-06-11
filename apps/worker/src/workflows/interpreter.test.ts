@@ -7,6 +7,8 @@ import {
   blogPostPipelineOutputSchema,
   blogPostPipelineSpec,
   graphSpecSchema,
+  seoBriefSpec,
+  templateCatalog,
   type ApprovalSignalPayload,
   type BlogDraft,
   type BlogPostPipelineInput,
@@ -446,5 +448,47 @@ describe("interpreterWorkflow", () => {
     });
     expect(tracker.writeCalls).toBe(1);
     expect(tracker.publishCalls).toBe(1);
+  });
+  it("dispatches a seo-brief template through the catalog engine mapping (Unit 29)", async () => {
+    const { tracker, activities } = makeMocks();
+    const taskQueue = "test-interpreter-seo";
+    const seoParams = {
+      targetKeyword: "ai workflow automation",
+      secondaryKeywords: ["durable ai pipelines"],
+      audience: "Heads of content at B2B agencies",
+      approverId: "user_seo_approver",
+    };
+
+    await runWorker(taskQueue, activities, async () => {
+      const handle = await testEnv.client.workflow.start(interpreterWorkflow, {
+        taskQueue,
+        workflowId: "interpreter-seo",
+        args: [
+          {
+            orgId: "org-1",
+            templateKey: "seo-brief",
+            spec: seoBriefSpec,
+            params: seoParams,
+          },
+        ],
+      });
+      await handle.signal(interpreterApprovalSignal, approvedPayload);
+      const result = await handle.result();
+      expect(result.status).toBe("completed");
+    });
+    // Research receives the MAPPED engine params, not the raw template params.
+    const engine = templateCatalog["seo-brief"].toEngineParams(seoParams);
+    expect(tracker.researchInputs[0]).toMatchObject({
+      topic: engine.topic,
+      keywords: engine.keywords,
+      tone: "professional",
+    });
+    // The gate is addressed to the mapped approver; the projection anchors
+    // under the template's customer-facing name.
+    expect(tracker.approvalRequests[0]).toMatchObject({
+      approverId: "user_seo_approver",
+    });
+    expect(tracker.runStarted[0]).toMatchObject({ workflowName: "SEO Brief" });
+    expect(tracker.writeInputs[0]).toMatchObject({ wordCount: 800 });
   });
 });

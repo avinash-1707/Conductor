@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CheckSquare,
   LayoutList,
+  MessageSquare,
   Settings,
   Workflow,
   type LucideProps,
@@ -88,8 +89,22 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      <div className="border-t border-line-soft px-4 py-3 font-mono text-[0.65rem] text-faint">
-        v1 · content ops
+      <div className="border-t border-line-soft px-3 py-3">
+        {/* Design-partner feedback channel (Unit 29) — feedback lives where
+            the operator lives. Override with NEXT_PUBLIC_FEEDBACK_URL. */}
+        <a
+          href={
+            process.env.NEXT_PUBLIC_FEEDBACK_URL ??
+            "mailto:avinash@kakiyo.com?subject=Conductor%20feedback"
+          }
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted transition-colors duration-150 hover:bg-raised/60 hover:text-ink"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Share feedback
+        </a>
+        <p className="px-2.5 pt-1 font-mono text-[0.65rem] text-faint">v1 · content ops</p>
       </div>
     </aside>
   );

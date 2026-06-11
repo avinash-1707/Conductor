@@ -126,11 +126,11 @@ export async function interpreterWorkflow(
       "InvalidWorkflowInput",
     );
   }
-  const { orgId, spec, params, resumeFrom } = parsedInput.data;
-  // v1 has exactly one template family; the catalog parse gives the dispatchers
-  // their typed parameters (already proven valid by the input schema). How a
-  // future template's params map onto its nodes is Unit 29's question.
-  const blogParams = templateCatalog["blog-post-pipeline"].paramsSchema.parse(params);
+  const { orgId, templateKey, spec, params, resumeFrom } = parsedInput.data;
+  // The catalog projects the template's params onto the engine contract the
+  // dispatchers consume (Unit 29 — pure mapping, sandbox-safe; the input
+  // schema already proved the params valid for this template).
+  const engine = templateCatalog[templateKey].toEngineParams(params);
   const order = executionOrder(spec);
 
   let decision: ApprovalSignalPayload | undefined;
@@ -184,7 +184,7 @@ export async function interpreterWorkflow(
         // (invariant 3 — no activity ever blocks on a person).
         await createApprovalRequest({
           orgId,
-          approverId: blogParams.approverId,
+          approverId: engine.approverId,
           context: { research: findings },
         });
         const timeoutHours = node.config.timeoutHours ?? activityRegistry.approval.defaults.timeoutHours;
@@ -221,18 +221,18 @@ export async function interpreterWorkflow(
       if (node.type === "research") {
         channels.research = await proxy.research({
           orgId,
-          topic: blogParams.topic,
-          keywords: blogParams.keywords,
-          tone: blogParams.tone,
+          topic: engine.topic,
+          keywords: engine.keywords,
+          tone: engine.tone,
         });
       } else if (node.type === "write") {
         const findings = requireChannel(channels.research, node, "research");
         channels.draft = await proxy.writeDraft({
           orgId,
-          topic: blogParams.topic,
-          keywords: blogParams.keywords,
-          tone: blogParams.tone,
-          wordCount: blogParams.wordCount,
+          topic: engine.topic,
+          keywords: engine.keywords,
+          tone: engine.tone,
+          wordCount: engine.wordCount,
           findings,
         });
       } else {

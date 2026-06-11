@@ -79,13 +79,13 @@ export function createOpenRouterResearchLLM(config: {
         abortSignal: AbortSignal.timeout(LLM_CALL_TIMEOUT_MS),
         system:
           "You are a meticulous research assistant for a content team. " +
-          "Propose credible source angles for a blog post and capture synthesis notes. " +
+          "Propose credible source angles for a content piece and capture synthesis notes. " +
           "Each source needs a title, a plausible URL, and a one-sentence takeaway.",
         prompt:
           `Topic: ${input.topic}\n` +
           `Target keywords: ${input.keywords.join(", ")}\n` +
           `Intended tone: ${input.tone}\n\n` +
-          "Identify 3-6 distinct, credible source angles a writer should ground this post in, " +
+          "Identify 3-6 distinct, credible source angles a writer should ground this piece in, " +
           "then write concise synthesis notes tying them to the topic.",
       });
       return object;

@@ -45,16 +45,18 @@ async function listTemplates(jwt: string) {
 }
 
 describe("GET /templates", () => {
-  it("seeds the org's definition row from the catalog and lists it", async () => {
+  it("seeds every catalog template for the org and lists them", async () => {
     const { jwt, orgId } = await signUpOwner(app);
     const body = await listTemplates(jwt);
 
-    expect(body.items).toHaveLength(1);
-    expect(body.items[0]).toMatchObject({
-      key: "blog-post-pipeline",
-      name: "Blog Post Pipeline",
-      version: 1,
-    });
+    // One pinned row per catalog entry (Unit 29 added seo-brief + competitor-research).
+    expect(body.items.map((i) => i.key)).toEqual([
+      "blog-post-pipeline",
+      "seo-brief",
+      "competitor-research",
+    ]);
+    expect(body.items.every((i) => i.version === 1)).toBe(true);
+    expect(body.items[0]).toMatchObject({ name: "Blog Post Pipeline" });
 
     const stored = await repos.definitions.findDefinitionById({
       orgId,

@@ -139,6 +139,11 @@ export function approvalRoutes(temporal: RunGateway): FastifyPluginAsync {
             409,
           );
         }
+        // Golden-path instrumentation (Unit 29).
+        req.log.info(
+          { event: "golden_path.approval_decided", orgId, decision, runId: approval.runId },
+          "approval decided",
+        );
         return toApprovalResource(claimed);
       };
 

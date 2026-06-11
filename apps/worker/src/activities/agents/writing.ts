@@ -76,20 +76,20 @@ export function createOpenRouterWritingLLM(config: {
         maxRetries: 1,
         abortSignal: signal(),
         system:
-          "You are a content strategist. Produce a tight section outline for a blog post, " +
+          "You are a content strategist. Produce a tight section outline for a content piece, " +
           "grounded in the supplied research.",
         prompt:
           `Topic: ${input.topic}\nKeywords: ${input.keywords.join(", ")}\n` +
           `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
           `Research:\n${findingsBlock(input.findings)}\n\n` +
-          "Return an ordered list of section headings/beats for the post.",
+          "Return an ordered list of section headings/beats for the piece.",
       });
       return object;
     },
 
     async draft(input) {
       const system =
-        "You are a senior content writer. Write a complete blog post in Markdown, " +
+        "You are a senior content writer. Write the requested content piece in Markdown, " +
         "in the requested tone, grounded in the research. Include a title.";
       const prompt =
         `Topic: ${input.topic}\nKeywords: ${input.keywords.join(", ")}\n` +

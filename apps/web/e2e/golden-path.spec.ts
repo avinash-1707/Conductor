@@ -50,7 +50,8 @@ test("golden path: sign up → checklist → launch → stream → approve → c
   await page.getByRole("link", { name: "Run your first pipeline" }).click();
   await page.waitForURL("**/workflows");
   await expect(page.getByText("Blog Post Pipeline")).toBeVisible();
-  await expect(page.getByText(/^v\d+$/)).toBeVisible();
+  // Three templates since Unit 29 — each card carries a pinned version chip.
+  await expect(page.getByText(/^v\d+$/).first()).toBeVisible();
   await page.fill("#topic", "Durable AI pipelines for agencies");
   await page.fill("#keywords", "temporal, reliability");
   await page.selectOption("#tone", "technical");

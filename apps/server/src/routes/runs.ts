@@ -111,6 +111,11 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
             workflowId: temporalWorkflowId,
             input: { orgId, templateKey, spec, params },
           });
+          // Golden-path instrumentation (Unit 29) — structured, greppable.
+          req.log.info(
+            { event: "golden_path.run_launched", orgId, templateKey, runId: id },
+            "run launched",
+          );
           return reply
             .code(201)
             .send(toRunResource({ ...run, temporalRunId }));
@@ -238,6 +243,15 @@ export function runRoutes(temporal: RunGateway): FastifyPluginAsync {
               ...(plan.resume ? { resumeFrom: plan.resume } : {}),
             },
           });
+          req.log.info(
+            {
+              event: "golden_path.run_resumed",
+              orgId,
+              runId: id,
+              resumedFromRunId: prior.id,
+            },
+            "run resumed",
+          );
           return reply.code(201).send(toRunResource({ ...run, temporalRunId }));
         } catch (err) {
           req.log.error(
