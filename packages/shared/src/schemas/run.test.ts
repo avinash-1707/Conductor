@@ -22,6 +22,7 @@ const validRun = {
   output: null,
   error: null,
   resumedFromRunId: null,
+  definitionId: null,
   startedAt: null,
   completedAt: null,
   createdAt: "2026-06-10T12:00:00.000Z",
@@ -51,6 +52,14 @@ describe("runSchema", () => {
     ).toBe(true);
     expect(
       runSchema.safeParse({ ...validRun, resumedFromRunId: "run-1" }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a pinned definition id and rejects a non-uuid one (Unit 30)", () => {
+    const definitionId = "3c8e7a1e-1111-4222-8333-444455556666";
+    expect(runSchema.safeParse({ ...validRun, definitionId }).success).toBe(true);
+    expect(
+      runSchema.safeParse({ ...validRun, definitionId: "def-1" }).success,
     ).toBe(false);
   });
 

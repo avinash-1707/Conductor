@@ -282,6 +282,31 @@
   }
 }
 
+/* ----------------------------------------------------------------------------
+   React Flow theming (Unit 30) — scoped to .spec-canvas so the library's
+   internals follow the tokens. Custom nodes/edges carry their own classes.
+---------------------------------------------------------------------------- */
+.spec-canvas .react-flow__handle {
+  height: 7px;
+  width: 7px;
+  border-radius: 9999px;
+  border: 1px solid var(--bg-inset);
+  background: var(--border-default);
+  pointer-events: none;
+}
+.spec-canvas .react-flow__attribution {
+  background: transparent;
+}
+.spec-canvas .react-flow__attribution a {
+  color: var(--text-faint);
+}
+.spec-canvas .react-flow__pane {
+  cursor: grab;
+}
+.spec-canvas .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

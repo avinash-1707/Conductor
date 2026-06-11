@@ -46,6 +46,7 @@ function toRunResource(run: Run): RunResource {
     output: run.output,
     error: run.error,
     resumedFromRunId: run.resumedFromRunId,
+    definitionId: run.definitionId,
     startedAt: run.startedAt?.toISOString() ?? null,
     completedAt: run.completedAt?.toISOString() ?? null,
     createdAt: run.createdAt.toISOString(),

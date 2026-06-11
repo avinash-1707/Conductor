@@ -8,6 +8,7 @@ export * from "./schemas/events";
 export * from "./schemas/blog-pipeline";
 export * from "./schemas/graph-spec";
 export * from "./schemas/template";
+export * from "./schemas/definition";
 export * from "./schemas/interpreter";
 export * from "./schemas/models";
 export * from "./constants";

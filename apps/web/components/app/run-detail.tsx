@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, GitBranch } from "lucide-react";
 import {
   blogPostPipelineInputSchema,
   type RunDetailResponse,
@@ -154,7 +154,19 @@ export function RunDetail({ detail }: { detail: RunDetailResponse }) {
           <p className="text-sm text-ink">
             {launch?.topic ?? workflowLabel(run.workflowName)}
           </p>
-          <StatusBadge status={run.status} />
+          <span className="flex items-center gap-3">
+            {/* The pinned spec view (Unit 30) — legacy rows have no definition. */}
+            {run.definitionId && (
+              <Link
+                href={`/runs/${run.id}/pipeline`}
+                className="inline-flex items-center gap-1.5 text-xs text-accent transition-colors hover:text-accent-hi"
+              >
+                <GitBranch className="h-3.5 w-3.5" aria-hidden />
+                View pipeline
+              </Link>
+            )}
+            <StatusBadge status={run.status} />
+          </span>
         </div>
         {run.resumedFromRunId && (
           <p className="text-xs text-muted">

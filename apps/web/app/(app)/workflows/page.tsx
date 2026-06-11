@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, FileText } from "lucide-react";
+import { ChevronDown, FileText, GitBranch } from "lucide-react";
 import { templateCatalog, type TemplateResource } from "@conductor/shared";
 import { api } from "@/lib/api";
 import { Card } from "@/components/app/ui";
@@ -28,26 +29,36 @@ function TemplateCard({
   const entry = templateCatalog[template.key];
   return (
     <Card className="p-5">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-start gap-3 text-left"
-      >
-        <FileText className="mt-0.5 h-5 w-5 text-accent" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-medium text-ink">{template.name}</h2>
-            <span className="rounded-md border border-line-soft px-1.5 py-0.5 font-mono text-[10px] text-faint">
-              v{template.version}
-            </span>
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        >
+          <FileText className="mt-0.5 h-5 w-5 text-accent" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-medium text-ink">{template.name}</h2>
+              <span className="rounded-md border border-line-soft px-1.5 py-0.5 font-mono text-[10px] text-faint">
+                v{template.version}
+              </span>
+            </div>
+            <p className="text-xs text-muted">{template.description}</p>
           </div>
-          <p className="text-xs text-muted">{template.description}</p>
-        </div>
-        <ChevronDown
-          className={`mt-0.5 h-4 w-4 text-faint transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-        />
-      </button>
+          <ChevronDown
+            className={`mt-0.5 h-4 w-4 text-faint transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+        {/* The read-only canvas view of this template's spec (Unit 30). */}
+        <Link
+          href={`/workflows/${template.key}`}
+          className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 text-xs text-accent transition-colors hover:text-accent-hi"
+        >
+          <GitBranch className="h-3.5 w-3.5" aria-hidden />
+          View pipeline
+        </Link>
+      </div>
       {open && <TemplateLaunchForm template={entry} />}
     </Card>
   );

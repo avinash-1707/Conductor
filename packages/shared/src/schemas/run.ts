@@ -22,6 +22,8 @@ export const runSchema = z.object({
   error: z.string().nullable(),
   /** The run this one was resumed from (Unit 22), if any. */
   resumedFromRunId: z.uuid().nullable(),
+  /** The pinned `workflow_definitions` version row (Unit 30); null on legacy rows. */
+  definitionId: z.uuid().nullable(),
   startedAt: z.iso.datetime().nullable(),
   completedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),

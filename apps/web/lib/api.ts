@@ -3,6 +3,7 @@
 import {
   approvalListResponseSchema,
   approvalResourceSchema,
+  definitionResourceSchema,
   launchRunRequestSchema,
   modelCatalogResponseSchema,
   orgModelSettingsResponseSchema,
@@ -13,6 +14,7 @@ import {
   updateOrgModelSettingsSchema,
   type ApprovalListResponse,
   type ApprovalResource,
+  type DefinitionResource,
   type LaunchRunRequest,
   type ModelCatalogResponse,
   type OrgModelSettings,
@@ -92,6 +94,11 @@ export const api = {
     /** Workflow Library listing — also seeds the org's pinned definition rows. */
     list: (): Promise<TemplateListResponse> =>
       apiFetch(`/templates`, { schema: templateListResponseSchema }),
+  },
+  definitions: {
+    /** A pinned workflow_definitions version row — the canvas viewer's spec source. */
+    get: (id: string): Promise<DefinitionResource> =>
+      apiFetch(`/definitions/${id}`, { schema: definitionResourceSchema }),
   },
   runs: {
     list: (params?: { cursor?: string; limit?: number }): Promise<RunListResponse> => {

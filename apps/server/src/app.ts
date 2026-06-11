@@ -13,6 +13,7 @@ import { closeCache } from "./cache";
 import { runRoutes } from "./routes/runs";
 import { approvalRoutes } from "./routes/approvals";
 import { templateRoutes } from "./routes/templates";
+import { definitionRoutes } from "./routes/definitions";
 import { registerAuth } from "./auth/plugin";
 import { createSessionVerifier } from "./auth/verify";
 import { createRealtime } from "./realtime/io";
@@ -107,6 +108,7 @@ export async function buildApp(opts: {
       modelSettingsRoutes(opts.modelCatalog ? { catalog: opts.modelCatalog } : undefined),
     );
     await app.register(templateRoutes());
+    await app.register(definitionRoutes());
     if (opts.temporal) {
       await app.register(runRoutes(opts.temporal));
       await app.register(approvalRoutes(opts.temporal));

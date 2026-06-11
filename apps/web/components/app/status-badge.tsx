@@ -62,6 +62,15 @@ export function StatusBadge({
  * Same centralized color map as the badge; the running tone carries the brand's
  * single meaningful pulse (reduced-motion disables it globally).
  */
+/**
+ * The badge's border tint for a status — lets other surfaces (the canvas
+ * viewer's node frames, Unit 30) borrow the same centralized tone map without
+ * re-implementing status colors locally.
+ */
+export function statusBorderClass(status: AnyStatus): string {
+  return TONE[STATUS[status].tone].border;
+}
+
 export function StatusDot({
   status,
   className = "",
