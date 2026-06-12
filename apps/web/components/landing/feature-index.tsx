@@ -25,7 +25,7 @@ const FEATURES = [
     n: "04",
     name: "Replayable audit trail",
     tag: "replayable",
-    text: "Every input, output, retry and decision — who approved what, when. Immutable, org-scoped, exportable.",
+    text: "Every input, output, retry and decision: who approved what, when. Immutable, org-scoped, exportable.",
   },
   {
     n: "05",

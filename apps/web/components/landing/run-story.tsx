@@ -24,7 +24,7 @@ import type { DemoStep } from "./run-provider";
 
 const RESEARCH_TEXT = `topic     "what a missed appointment costs an hvac company"
 sources   14 crawled · 6 quotes pulled
-intent    commercial — buyers comparing field-service platforms
+intent    commercial · buyers comparing field-service platforms
 gap       nobody prices out dispatch automation honestly
 angle     lead with the $380-per-missed-visit math, then the fix`;
 
@@ -126,16 +126,16 @@ export function RunStory() {
     research:
       run.suspendedAt && run.startedAt
         ? formatElapsed(run.suspendedAt - run.startedAt)
-        : "—",
-    approval: run.suspendedAt ? formatElapsed(waitedMs) : "—",
+        : "·",
+    approval: run.suspendedAt ? formatElapsed(waitedMs) : "·",
     write:
       run.publishingAt && run.decidedAt
         ? formatElapsed(run.publishingAt - run.decidedAt)
-        : "—",
+        : "·",
     publish:
       run.finishedAt && run.publishingAt
         ? formatElapsed(run.finishedAt - run.publishingAt)
-        : "—",
+        : "·",
   };
 
   return (
@@ -153,7 +153,7 @@ export function RunStory() {
         <Reveal delay={140}>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted">
             Four steps, one human gate, nobody watching. Here is the same run,
-            told in full — and it will not move past the gate until you decide.
+            told in full. It will not move past the gate until you decide.
           </p>
         </Reveal>
 
@@ -189,7 +189,7 @@ export function RunStory() {
                 })}
               </ol>
               <p className="mt-10 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-faint">
-                fig. 02 — the timeline rail
+                fig. 02 · the timeline rail
               </p>
             </div>
           </div>
@@ -205,7 +205,7 @@ export function RunStory() {
               />
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">
                 Each step is a specialist agent doing one job. Research crawls
-                sources, pulls quotes, finds the angle — and streams its work
+                sources, pulls quotes, finds the angle, and streams its work
                 live, so nobody wonders what is happening inside.
               </p>
               <Console className="mt-6 min-h-[9.5rem] whitespace-pre-wrap text-muted">
@@ -232,9 +232,10 @@ export function RunStory() {
                 />
                 <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">
                   Then the run stops. On purpose. Before a model speaks for
-                  your client, a person signs off. The run suspends — no
-                  compute burned, no polling — until someone decides. It would
-                  wait 24 hours, then expire politely. Today it waits for you.
+                  your client, a person signs off. The run suspends, with no
+                  compute burned and no polling, until someone decides. It
+                  would wait 24 hours, then expire politely. Today it waits
+                  for you.
                 </p>
 
                 <div
@@ -263,7 +264,7 @@ export function RunStory() {
                     <div className="rounded-md bg-inset px-4 py-3 font-mono text-xs leading-6 text-muted">
                       <p className="text-ink">research summary</p>
                       <p>
-                        angle — lead with the $380-per-missed-visit math, then
+                        angle: lead with the $380-per-missed-visit math, then
                         the fix
                       </p>
                       <p>14 sources · 6 quotes · intent: commercial</p>
@@ -304,7 +305,7 @@ export function RunStory() {
                     {phase === "rejected" && (
                       <>
                         <span className="font-mono text-xs text-cancelled">
-                          ✗ rejected · you · run ended gracefully — nothing
+                          ✗ rejected · you · run ended gracefully, nothing
                           half-published
                         </span>
                         <ActionButton
@@ -338,13 +339,13 @@ export function RunStory() {
               <Console className="mt-6 min-h-[13rem] whitespace-pre-wrap text-muted">
                 {phase === "rejected" ? (
                   <span className="text-faint">
-                    run ended at the gate — nothing was written.
+                    run ended at the gate. nothing was written.
                   </span>
                 ) : draft.started ? (
                   <span className={draft.done ? "" : "caret"}>{draft.text}</span>
                 ) : (
                   <span className="text-faint">
-                    ⏸ waiting at the gate — approve above to resume
+                    ⏸ waiting at the gate. approve above to resume
                   </span>
                 )}
               </Console>
@@ -359,7 +360,7 @@ export function RunStory() {
               />
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">
                 Publish delivers the output, and the run closes over a complete
-                audit trail — every input, output, attempt and decision, with
+                audit trail: every input, output, attempt and decision, with
                 names and timestamps. Replayable forever.
               </p>
               <Console className="mt-6">
@@ -383,7 +384,7 @@ export function RunStory() {
                     <AuditRow
                       done={reached(phase, "writing") || phase === "rejected"}
                       step="approval"
-                      attempts="—"
+                      attempts="·"
                       duration={durations.approval}
                       note={
                         phase === "rejected" ? "rejected · you" : "approved · you"
@@ -452,9 +453,9 @@ function AuditRow({
   return (
     <tr style={dim} className="transition-opacity duration-300">
       <td className="py-1 pr-4 text-ink">{step}</td>
-      <td className="py-1 pr-4 tabular-nums">{done ? attempts : "—"}</td>
-      <td className="py-1 pr-4 tabular-nums">{done ? duration : "—"}</td>
-      <td className={`py-1 ${done ? noteTone : ""}`}>{done ? note : "—"}</td>
+      <td className="py-1 pr-4 tabular-nums">{done ? attempts : "·"}</td>
+      <td className="py-1 pr-4 tabular-nums">{done ? duration : "·"}</td>
+      <td className={`py-1 ${done ? noteTone : ""}`}>{done ? note : "·"}</td>
     </tr>
   );
 }

@@ -1,0 +1,10 @@
+import { chromium } from "@playwright/test";
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1.5 });
+await page.goto("http://localhost:3000/", { waitUntil: "domcontentloaded", timeout: 90000 });
+await page.waitForTimeout(6000);
+await page.screenshot({ path: "/tmp/v3-hero.png" });
+await page.getByRole("button", { name: /Switch to light/ }).click();
+await page.waitForTimeout(1100);
+await page.screenshot({ path: "/tmp/v3-hero-light.png" });
+await browser.close();

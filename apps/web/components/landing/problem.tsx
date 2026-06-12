@@ -64,7 +64,7 @@ export function Problem() {
         <Reveal delay={160}>
           <p className="mt-14 max-w-2xl text-lg leading-relaxed text-muted">
             You already built the agents. It&apos;s the{" "}
-            <span className="text-ink">operations</span> that break — the
+            <span className="text-ink">operations</span> that break: the
             crashes nobody sees, the approvals nobody finds, the retries
             everybody pays for. Conductor is the operations half.
           </p>

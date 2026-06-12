@@ -110,8 +110,8 @@ export function Reliability() {
         setStatus("done");
         log(
           killed
-            ? `run completed — attempt ${attempts[stepIdx]} is on the record`
-            : "run completed — now run it again, and kill it this time",
+            ? `run completed · attempt ${attempts[stepIdx]} on the record`
+            : "run completed. now run it again, and kill it this time",
           "text-completed",
         );
       } else {
@@ -133,15 +133,15 @@ export function Reliability() {
 
     setStatus("down");
     setKilled(true);
-    log(`⚠ worker-${deadWorker} terminated — that was you`, "text-failed");
-    log("run state preserved — nothing lost", "text-muted");
+    log(`⚠ worker-${deadWorker} terminated. that was you`, "text-failed");
+    log("run state preserved · nothing lost", "text-muted");
 
     timeoutsRef.current.push(
       window.setTimeout(() => {
         log(`worker-${newWorker} picked up the run`, "text-accent");
       }, 1100),
       window.setTimeout(() => {
-        log(`${step.key} resumed at ${pct}% — exact position, no rework`, "text-running");
+        log(`${step.key} resumed at ${pct}% · exact position, no rework`, "text-running");
         setAttempts((prev) => {
           const next = [...prev];
           next[stepIdx] = (next[stepIdx] ?? 1) + 1;
@@ -179,7 +179,7 @@ export function Reliability() {
         <Reveal delay={140}>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted">
             Conductor runs on durable execution. When a worker dies mid-step,
-            the run is not lost — another worker picks it up at the exact
+            the run is not lost: another worker picks it up at the exact
             position and finishes the job, and the retry lands in the audit
             trail. Don&apos;t take our word for it:
           </p>
@@ -235,7 +235,7 @@ export function Reliability() {
             {/* Log console */}
             <div className="bg-inset p-6">
               <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-faint">
-                fig. 03 — worker log
+                fig. 03 · worker log
               </p>
               <div className="mt-4 min-h-[13rem] font-mono text-xs leading-6">
                 {logs.length === 0 && (
@@ -259,7 +259,7 @@ export function Reliability() {
             </span>
             <span>resumes from the exact step</span>
             <span>every attempt on the record</span>
-            <span>failed runs restart from the last good step — tokens spent once</span>
+            <span>failed runs restart from the last good step · tokens spent once</span>
           </div>
         </Reveal>
       </div>

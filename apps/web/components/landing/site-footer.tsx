@@ -16,7 +16,7 @@ export function SiteFooter() {
       <div className="border-t border-line-soft">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-6 font-mono text-xs text-faint">
           <span className="flex items-center gap-2">
-            <Logo className="h-4 w-4 text-accent" />© 2026 Conductor — built
+            <Logo className="h-4 w-4 text-accent" />© 2026 Conductor · built
             to be killed mid-run.
           </span>
           <span className="flex items-center gap-6">

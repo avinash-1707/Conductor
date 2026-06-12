@@ -8,7 +8,7 @@ export function CallToAction() {
       <div className="mx-auto max-w-6xl px-6 text-center">
         <Reveal>
           <p className="font-mono text-[0.7rem] uppercase tracking-[0.24em] text-faint">
-            § 05 — the ask
+            § 05 · the ask
           </p>
         </Reveal>
         <Reveal delay={80}>
@@ -19,7 +19,7 @@ export function CallToAction() {
         </Reveal>
         <Reveal delay={160}>
           <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted">
-            We&apos;re onboarding three design-partner agencies — free, in
+            We&apos;re onboarding three design-partner agencies, free, in
             exchange for honest feedback every week. Your pipelines, running
             unattended by Friday.
           </p>

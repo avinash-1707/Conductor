@@ -34,7 +34,7 @@ const FLASH: Record<RunStatus, string> = {
 
 const RESEARCH_LINES = [
   "research › crawling 14 sources",
-  "research › intent: commercial — buyers comparing",
+  "research › intent: commercial · buyers comparing",
   "research › gap: nobody prices dispatch automation",
   "research › 6 quotes extracted ✓",
 ];
@@ -94,7 +94,7 @@ export function RunLedger() {
             const [start, end] = ends[step.key];
             const duration =
               start === null
-                ? "—"
+                ? "·"
                 : formatElapsed((end ?? now) - start);
             return (
               <li
@@ -129,7 +129,7 @@ export function RunLedger() {
           )}
           {phase === "suspended" && (
             <span className="text-suspended">
-              paused — a human has to sign off. that&apos;s you.{" "}
+              paused. a human has to sign off. that&apos;s you.{" "}
               <a
                 href="#gate"
                 className="link-underline text-accent hover:text-accent-hi"
@@ -140,23 +140,23 @@ export function RunLedger() {
           )}
           {(phase === "writing" || phase === "publishing") && (
             <span className="caret text-running">
-              resumed — draft streaming live below ↓
+              resumed · draft streaming live below ↓
             </span>
           )}
           {phase === "completed" && (
             <span className="text-completed">
-              ✓ completed — every attempt, input and decision on the record ↓
+              ✓ completed · every attempt, input and decision on the record ↓
             </span>
           )}
           {phase === "rejected" && (
             <span className="text-cancelled">
-              rejected — run ended gracefully. nothing half-published.
+              rejected. run ended gracefully. nothing half-published.
             </span>
           )}
         </div>
       </div>
       <figcaption className="mt-3 px-1 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-faint">
-        fig. 01 — a live run. it is really waiting for you.
+        fig. 01 · a live run. it is really waiting for you.
       </figcaption>
     </figure>
   );
