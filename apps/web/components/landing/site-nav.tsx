@@ -33,8 +33,8 @@ export function SiteNav() {
         aria-label="Main"
         className={`nav-shell mx-auto flex h-14 items-center justify-between border backdrop-blur-md ${
           scrolled
-            ? "mt-3 max-w-4xl rounded-xl border-line-soft bg-[color-mix(in_oklab,var(--bg-surface)_84%,transparent)] px-4 shadow-[var(--shadow-card)]"
-            : "mt-0 max-w-6xl rounded-none border-transparent bg-transparent px-2"
+            ? "mt-6 max-w-4xl rounded-xl border-line-soft bg-[color-mix(in_oklab,var(--bg-surface)_84%,transparent)] px-4 shadow-[var(--shadow-card)]"
+            : "mt-4 max-w-6xl rounded-none border-transparent bg-transparent px-2"
         }`}
       >
         <Link

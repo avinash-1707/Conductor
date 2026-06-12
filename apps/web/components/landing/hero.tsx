@@ -10,9 +10,9 @@ import { RunLedger } from "./run-ledger";
  */
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-24 pt-36 md:pt-44">
+    <section className="relative flex min-h-svh flex-col justify-center overflow-hidden pb-28 pt-32 md:pt-28">
       <CyberGrid />
-      <div className="relative mx-auto max-w-6xl px-6">
+      <div className="relative mx-auto w-full max-w-6xl px-6">
         <h1 className="font-display text-[clamp(3.4rem,8.5vw,6.8rem)] leading-[0.98] tracking-[-0.02em]">
           <span className="rise block" style={{ animationDelay: "120ms" }}>
             Launch ten runs.
