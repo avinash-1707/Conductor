@@ -1,71 +1,44 @@
 import Link from "next/link";
 import { Logo } from "./icons";
 
-const GROUPS: { heading: string; links: { label: string; href: string }[] }[] = [
-  {
-    heading: "Product",
-    links: [
-      { label: "How it works", href: "#how" },
-      { label: "Features", href: "#features" },
-      { label: "Reliability", href: "#reliability" },
-    ],
-  },
-  {
-    heading: "Company",
-    links: [
-      { label: "About", href: "/about" },
-      { label: "Contact", href: "/contact" },
-      { label: "Careers", href: "/careers" },
-    ],
-  },
-  {
-    heading: "Account",
-    links: [
-      { label: "Sign in", href: "/login" },
-      { label: "Start free", href: "/signup" },
-    ],
-  },
-];
-
 export function SiteFooter() {
   return (
-    <footer className="border-t border-line-soft">
-      <div className="mx-auto w-full max-w-6xl px-6 py-16">
-        <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          <div className="max-w-xs">
-            <Link href="/" className="flex items-center gap-2.5 text-ink">
-              <Logo className="h-5 w-5 text-accent" />
-              <span className="font-mono text-sm font-medium">conductor</span>
+    <footer className="overflow-hidden border-t border-line-soft">
+      <div className="mx-auto max-w-6xl px-6">
+        {/* Giant outline wordmark — the editorial sign-off. */}
+        <p
+          aria-hidden
+          className="ghost-word -mb-[0.16em] mt-10 text-center font-display text-[clamp(4rem,15vw,13rem)] leading-none tracking-tight"
+        >
+          Conductor
+        </p>
+      </div>
+      <div className="border-t border-line-soft">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-6 font-mono text-xs text-faint">
+          <span className="flex items-center gap-2">
+            <Logo className="h-4 w-4 text-accent" />© 2026 Conductor — built
+            to be killed mid-run.
+          </span>
+          <span className="flex items-center gap-6">
+            <Link
+              href="/login"
+              className="link-underline transition-colors duration-200 hover:text-ink"
+            >
+              sign in
             </Link>
-            <p className="mt-4 text-sm leading-relaxed text-muted">
-              Run the AI work you cannot afford to lose.
-            </p>
-          </div>
-
-          {GROUPS.map((group) => (
-            <div key={group.heading}>
-              <h3 className="font-mono text-xs uppercase tracking-[0.18em] text-faint">
-                {group.heading}
-              </h3>
-              <ul className="mt-4 space-y-2.5">
-                {group.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted transition-colors duration-200 hover:text-ink"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-14 flex flex-col items-start justify-between gap-3 border-t border-line-soft pt-6 font-mono text-xs text-faint sm:flex-row sm:items-center">
-          <span>© 2026 Conductor</span>
-          <span>Run AI workflows you can trust.</span>
+            <Link
+              href="/signup"
+              className="link-underline transition-colors duration-200 hover:text-ink"
+            >
+              start free
+            </Link>
+            <a
+              href="#top"
+              className="link-underline transition-colors duration-200 hover:text-ink"
+            >
+              top ↑
+            </a>
+          </span>
         </div>
       </div>
     </footer>

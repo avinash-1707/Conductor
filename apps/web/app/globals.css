@@ -341,6 +341,110 @@
   }
 }
 
+/* ----------------------------------------------------------------------------
+   Theme switching. ThemeToggle drives a View Transition circular reveal from
+   the button; browsers without the API get a plain color cross-fade via a
+   one-shot .theme-fade class on <html>.
+---------------------------------------------------------------------------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+.theme-fade,
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition:
+    background-color 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+    border-color 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+    color 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+    fill 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+    stroke 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+}
+
+/* ----------------------------------------------------------------------------
+   Landing v2 — editorial console.
+---------------------------------------------------------------------------- */
+
+/* One-shot tint flash when a step row changes status (re-mounted via key). */
+.status-flash {
+  animation: status-flash 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes status-flash {
+  from {
+    background-color: color-mix(
+      in oklab,
+      var(--flash, var(--accent-primary)) 14%,
+      transparent
+    );
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+/* Nav morphs between a full-width bar and a floating capsule on scroll. */
+.nav-shell {
+  transition:
+    max-width 0.52s cubic-bezier(0.32, 0.72, 0, 1),
+    margin 0.52s cubic-bezier(0.32, 0.72, 0, 1),
+    padding 0.52s cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 0.52s cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 0.52s cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 0.52s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.52s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Animated underline for nav and footer links. */
+.link-underline {
+  position: relative;
+}
+.link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.link-underline:hover::after,
+.link-underline:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* Reliability demo progress bars — transform-only, driven by --p (0..1). */
+.demo-bar {
+  overflow: hidden;
+}
+.demo-bar > i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+  transition: transform 0.24s linear;
+}
+
+/* Giant outline wordmark in the footer. */
+.ghost-word {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--border-default);
+  user-select: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

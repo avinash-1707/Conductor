@@ -4,35 +4,44 @@ import { Reveal } from "./reveal";
 
 export function CallToAction() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-28">
-      <Reveal>
-        <div className="relative overflow-hidden rounded-2xl border border-line-soft bg-surface px-8 py-16 text-center shadow-[var(--shadow-card)] sm:px-16 sm:py-20">
-          <div
-            aria-hidden
-            className="absolute inset-x-0 -top-24 -z-0 mx-auto h-48 w-[min(36rem,80%)] rounded-full bg-[radial-gradient(circle,var(--glow-accent),transparent_70%)] blur-2xl"
-          />
-          <div className="relative">
-            <h2 className="mx-auto max-w-xl text-4xl leading-tight tracking-tight text-ink sm:text-5xl">
-              Stop babysitting your pipelines.
-            </h2>
-            <p className="mx-auto mt-5 max-w-md text-pretty text-muted">
-              Set them running and get back to the work that actually needs you.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Button href="/signup">
-                Start free
-                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Button>
-              <Button href="/contact" variant="ghost">
-                Talk to us
-              </Button>
-            </div>
-            <p className="mt-7 font-mono text-xs text-faint">
-              Free for design partners. No card required.
-            </p>
+    <section className="py-28 md:py-40">
+      <div className="mx-auto max-w-6xl px-6 text-center">
+        <Reveal>
+          <p className="font-mono text-[0.7rem] uppercase tracking-[0.24em] text-faint">
+            § 05 — the ask
+          </p>
+        </Reveal>
+        <Reveal delay={80}>
+          <h2 className="mx-auto mt-8 max-w-4xl font-display text-[clamp(2.6rem,6vw,4.8rem)] leading-[1.05] tracking-tight">
+            Run AI workflows you can{" "}
+            <em className="italic text-accent">trust</em>.
+          </h2>
+        </Reveal>
+        <Reveal delay={160}>
+          <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted">
+            We&apos;re onboarding three design-partner agencies — free, in
+            exchange for honest feedback every week. Your pipelines, running
+            unattended by Friday.
+          </p>
+        </Reveal>
+        <Reveal delay={240}>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <Button href="/signup">
+              Start free
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Button>
+            <Button href="/login" variant="ghost">
+              Open the console
+            </Button>
           </div>
-        </div>
-      </Reveal>
+        </Reveal>
+        <Reveal delay={320}>
+          <p className="mt-6 font-mono text-xs text-faint">
+            setup ≈ one afternoon · bring your OpenRouter key · kill our worker
+            any time
+          </p>
+        </Reveal>
+      </div>
     </section>
   );
 }

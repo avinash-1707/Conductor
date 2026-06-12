@@ -83,6 +83,8 @@ const BUTTON_VARIANT = {
     "bg-[var(--accent-fill)] text-[var(--accent-fg)] hover:bg-[var(--accent-fill-hi)] shadow-[0_10px_30px_-12px_var(--glow-accent)]",
   ghost:
     "border border-line bg-surface/50 text-ink hover:bg-raised hover:border-line",
+  danger:
+    "border border-line bg-surface/50 text-failed hover:bg-raised hover:border-[color:var(--status-failed)]",
 } as const;
 
 export function Button({
@@ -112,6 +114,79 @@ export function Button({
     <Link href={href} className={cls}>
       {children}
     </Link>
+  );
+}
+
+/** A real <button> sharing the link Button's visual language — for the
+ *  interactive demos (approve, reject, kill the worker). */
+export function ActionButton({
+  children,
+  onClick,
+  disabled = false,
+  variant = "primary",
+  size = "md",
+  className = "",
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: keyof typeof BUTTON_VARIANT;
+  size?: keyof typeof BUTTON_SIZE;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`${BUTTON_BASE} ${BUTTON_SIZE[size]} ${BUTTON_VARIANT[variant]} disabled:pointer-events-none disabled:opacity-45 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Status badge: dot + label on a dim tint of the status color. */
+export function StatusBadge({
+  status,
+  label,
+  className = "",
+}: {
+  status: RunStatus;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-[0.65rem] uppercase tracking-[0.14em] ${TEXT[status]} ${className}`}
+      style={{
+        backgroundColor: "color-mix(in oklab, currentColor 11%, transparent)",
+      }}
+    >
+      <StatusDot status={status} pulse={status === "running"} />
+      {label ?? status}
+    </span>
+  );
+}
+
+/** Editorial section header: `§ NN ——————— TITLE` in mono over a hairline. */
+export function Folio({
+  n,
+  title,
+  className = "",
+}: {
+  n: string;
+  title: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex items-baseline gap-4 font-mono text-[0.7rem] uppercase tracking-[0.24em] text-faint ${className}`}
+    >
+      <span className="text-accent">§ {n}</span>
+      <span aria-hidden className="h-px flex-1 self-center bg-line-soft" />
+      <span>{title}</span>
+    </div>
   );
 }
 

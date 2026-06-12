@@ -101,6 +101,23 @@ export function Ledger(props: IconProps) {
   );
 }
 
+export function X(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden {...stroke} {...props}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+export function Restart(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden {...stroke} {...props}>
+      <path d="M4 5v5h5" />
+      <path d="M4.6 10A8 8 0 1 1 4 13.5" />
+    </svg>
+  );
+}
+
 export function Key(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden {...stroke} {...props}>
