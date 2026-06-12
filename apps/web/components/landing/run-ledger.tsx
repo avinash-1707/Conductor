@@ -41,8 +41,10 @@ const RESEARCH_LINES = [
 
 /**
  * The hero artifact: a live ledger of the page's demo run. It starts on its
- * own, suspends at the approval gate, and waits for the visitor — the rest
- * of the page is the same run, told in full.
+ * own, suspends at the approval gate, and waits for the visitor; the rest
+ * of the page is the same run, told in full. Styled as a glass console over
+ * the hero's glow: blurred translucent surface, accent top hairline, and a
+ * miniature timeline rail through the step dots.
  */
 export function RunLedger() {
   const run = useDemoRun();
@@ -64,17 +66,29 @@ export function RunLedger() {
   );
 
   const totalMs =
-    run.startedAt === null
-      ? 0
-      : (run.finishedAt ?? now) - run.startedAt;
+    run.startedAt === null ? 0 : (run.finishedAt ?? now) - run.startedAt;
 
   return (
-    <figure className="w-full">
-      <div className="rounded-xl border border-line-soft bg-surface shadow-[var(--shadow-card)]">
+    <figure className="relative w-full">
+      {/* Halo so the panel sits inside the hero's glow instead of on it. */}
+      <div
+        aria-hidden
+        className="absolute -inset-8 rounded-[2.5rem] bg-[radial-gradient(58%_58%_at_50%_32%,var(--glow-accent),transparent_72%)] blur-2xl"
+      />
+
+      <div className="relative overflow-hidden rounded-xl border border-line-soft bg-[color-mix(in_oklab,var(--bg-surface)_78%,transparent)] shadow-[var(--shadow-card)] backdrop-blur-md">
+        {/* Accent hairline along the top edge. */}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_oklab,var(--accent-primary)_55%,transparent),transparent)]"
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
           <span className="truncate font-mono text-xs text-faint">
-            run <span className="text-muted">01HFX2…R7TK</span> · blog-post-pipeline
+            <span className="text-accent">run</span>{" "}
+            <span className="text-muted">01HFX2…R7TK</span> ·
+            blog-post-pipeline
           </span>
           <div className="flex shrink-0 items-center gap-3">
             <span className="font-mono text-xs tabular-nums text-faint">
@@ -87,22 +101,26 @@ export function RunLedger() {
           </div>
         </div>
 
-        {/* Step rows */}
-        <ul className="px-2 py-2">
+        {/* Step rows over a miniature timeline rail. */}
+        <ul className="relative px-3 py-2">
+          <span
+            aria-hidden
+            className="absolute bottom-7 top-7 left-[1.69rem] w-px bg-line-soft"
+          />
           {STEPS.map((step) => {
             const status = stepStatus(phase, step.key);
             const [start, end] = ends[step.key];
             const duration =
-              start === null
-                ? "·"
-                : formatElapsed((end ?? now) - start);
+              start === null ? "·" : formatElapsed((end ?? now) - start);
             return (
               <li
                 key={`${step.key}-${status}`}
-                className="status-flash flex items-center gap-3 rounded-md px-2 py-2"
+                className="status-flash relative flex items-center gap-3 rounded-md px-2 py-2"
                 style={{ "--flash": FLASH[status] } as CSSProperties}
               >
-                <StatusDot status={status} pulse={status === "running"} />
+                <span className="relative z-10 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-inset ring-1 ring-[color:var(--border-default)]">
+                  <StatusDot status={status} pulse={status === "running"} />
+                </span>
                 <span
                   className={`font-mono text-xs ${
                     status === "pending" ? "text-faint" : "text-ink"
@@ -110,7 +128,10 @@ export function RunLedger() {
                 >
                   {step.label}
                 </span>
-                <span aria-hidden className="h-px flex-1 bg-line-soft" />
+                <span
+                  aria-hidden
+                  className="mb-1 flex-1 self-end border-b border-dotted border-[color:var(--border-default)]"
+                />
                 <span className="font-mono text-xs tabular-nums text-faint">
                   {duration}
                 </span>
@@ -120,11 +141,20 @@ export function RunLedger() {
         </ul>
 
         {/* Live line */}
-        <div className="min-h-[3.25rem] border-t border-line-soft px-4 py-3 font-mono text-xs leading-5">
-          {phase === "boot" && <span className="text-faint">scheduling run…</span>}
+        <div className="min-h-[3.25rem] border-t border-line-soft bg-[color-mix(in_oklab,var(--bg-inset)_55%,transparent)] px-4 py-3 font-mono text-xs leading-5">
+          {phase === "boot" && (
+            <span className="text-faint">scheduling run…</span>
+          )}
           {phase === "research" && (
             <span className="caret text-muted">
-              {RESEARCH_LINES[Math.max(0, Math.min(researchLineCount, RESEARCH_LINES.length) - 1)]}
+              {
+                RESEARCH_LINES[
+                  Math.max(
+                    0,
+                    Math.min(researchLineCount, RESEARCH_LINES.length) - 1,
+                  )
+                ]
+              }
             </span>
           )}
           {phase === "suspended" && (
@@ -155,8 +185,10 @@ export function RunLedger() {
           )}
         </div>
       </div>
-      <figcaption className="mt-3 px-1 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-faint">
-        fig. 01 · a live run. it is really waiting for you.
+
+      <figcaption className="mt-3 flex items-baseline justify-between px-1 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-faint">
+        <span>fig. 01 · a live run</span>
+        <span>it is really waiting for you</span>
       </figcaption>
     </figure>
   );
