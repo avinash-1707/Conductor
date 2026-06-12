@@ -3,16 +3,7 @@ import { Logo } from "./icons";
 
 export function SiteFooter() {
   return (
-    <footer className="overflow-hidden border-t border-line-soft">
-      <div className="mx-auto max-w-6xl px-6">
-        {/* Giant outline wordmark — the editorial sign-off. */}
-        <p
-          aria-hidden
-          className="ghost-word -mb-[0.16em] mt-10 text-center font-display text-[clamp(4rem,15vw,13rem)] leading-none tracking-tight"
-        >
-          Conductor
-        </p>
-      </div>
+    <footer className="overflow-hidden">
       <div className="border-t border-line-soft">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-6 font-mono text-xs text-faint">
           <span className="flex items-center gap-2">
