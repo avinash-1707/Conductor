@@ -1,4 +1,4 @@
-import { Folio } from "./primitives";
+import { Folio, GhostNumeral } from "./primitives";
 import { Reveal } from "./reveal";
 
 const INCIDENTS = [
@@ -28,7 +28,10 @@ const INCIDENTS = [
 export function Problem() {
   return (
     <section id="problem" className="scroll-mt-24 py-28 md:py-36">
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="relative mx-auto max-w-6xl px-6">
+        <GhostNumeral className="right-2 top-0 text-[clamp(7rem,18vw,14rem)]">
+          01
+        </GhostNumeral>
         <Reveal>
           <Folio n="01" title="The problem" />
         </Reveal>
@@ -51,7 +54,11 @@ export function Problem() {
                   {incident.text}
                 </p>
                 <span
-                  className={`col-start-2 font-mono text-[0.65rem] uppercase tracking-[0.18em] sm:col-start-3 ${incident.tone}`}
+                  className={`col-start-2 inline-flex w-fit items-center rounded-md px-2 py-0.5 font-mono text-[0.65rem] uppercase tracking-[0.18em] sm:col-start-3 ${incident.tone}`}
+                  style={{
+                    backgroundColor:
+                      "color-mix(in oklab, currentColor 10%, transparent)",
+                  }}
                 >
                   {incident.tag}
                 </span>

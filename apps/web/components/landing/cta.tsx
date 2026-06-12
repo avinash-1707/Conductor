@@ -1,11 +1,14 @@
 import { ArrowRight } from "./icons";
 import { Button } from "./primitives";
+import { CyberGrid } from "./cyber-grid";
 import { Reveal } from "./reveal";
 
 export function CallToAction() {
   return (
-    <section className="py-28 md:py-40">
-      <div className="mx-auto max-w-6xl px-6 text-center">
+    <section className="relative overflow-hidden py-32 md:py-44">
+      {/* Reprise of the hero backdrop: the page closes where it opened. */}
+      <CyberGrid beamCount={12} />
+      <div className="relative mx-auto max-w-6xl px-6 text-center">
         <Reveal>
           <p className="font-mono text-[0.7rem] uppercase tracking-[0.24em] text-faint">
             § 05 · the ask

@@ -190,6 +190,25 @@ export function Folio({
   );
 }
 
+/** Giant outlined section numeral, the editorial echo of the footer
+ *  wordmark. Position with the className; parent must be relative. */
+export function GhostNumeral({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`ghost-word pointer-events-none absolute font-display leading-none ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
 /** A surface card with the brand's adaptive border + shadow (Jakub: shadows
  *  adapt to either theme where a single solid border would clash). */
 export function Panel({

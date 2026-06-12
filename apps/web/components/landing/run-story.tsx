@@ -5,6 +5,7 @@ import { Check, Restart, X } from "./icons";
 import {
   ActionButton,
   Folio,
+  GhostNumeral,
   StatusBadge,
   StatusDot,
 } from "./primitives";
@@ -97,8 +98,12 @@ function Console({
 }) {
   return (
     <div
-      className={`rounded-lg border border-line-soft bg-inset px-5 py-4 font-mono text-xs leading-6 ${className}`}
+      className={`relative overflow-hidden rounded-lg border border-line-soft bg-inset px-5 py-4 font-mono text-xs leading-6 ${className}`}
     >
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_oklab,var(--accent-primary)_40%,transparent),transparent)]"
+      />
       {children}
     </div>
   );
@@ -140,7 +145,10 @@ export function RunStory() {
 
   return (
     <section id="run" className="scroll-mt-24 py-28 md:py-36">
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="relative mx-auto max-w-6xl px-6">
+        <GhostNumeral className="right-2 top-0 text-[clamp(7rem,18vw,14rem)]">
+          02
+        </GhostNumeral>
         <Reveal>
           <Folio n="02" title="One run, start to finish" />
         </Reveal>

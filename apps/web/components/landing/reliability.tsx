@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Power, Restart } from "./icons";
-import { ActionButton, Folio } from "./primitives";
+import { ActionButton, Folio, GhostNumeral } from "./primitives";
 import { Reveal } from "./reveal";
 
 type DemoStatus = "idle" | "running" | "down" | "done";
@@ -165,8 +165,12 @@ export function Reliability() {
   };
 
   return (
-    <section id="reliability" className="scroll-mt-24 py-28 md:py-36">
-      <div className="mx-auto max-w-6xl px-6">
+    <section id="reliability" className="relative scroll-mt-24 py-28 md:py-36">
+      <div aria-hidden className="dot-grid absolute inset-0" />
+      <div className="relative mx-auto max-w-6xl px-6">
+        <GhostNumeral className="right-2 top-0 text-[clamp(7rem,18vw,14rem)]">
+          03
+        </GhostNumeral>
         <Reveal>
           <Folio n="03" title="Try to break it" />
         </Reveal>
@@ -188,8 +192,16 @@ export function Reliability() {
         <Reveal delay={200}>
           <div
             ref={rootRef}
-            className="mt-12 grid gap-px overflow-hidden rounded-xl border border-line-soft bg-[var(--border-subtle)] shadow-[var(--shadow-card)] lg:grid-cols-[1fr_1.1fr]"
+            className="relative mt-12 grid gap-px overflow-hidden rounded-xl border border-line-soft bg-[var(--border-subtle)] shadow-[var(--shadow-card)] lg:grid-cols-[1fr_1.1fr]"
           >
+            <span
+              aria-hidden
+              className={`absolute inset-x-0 top-0 z-10 h-px transition-colors duration-300 ${
+                status === "down"
+                  ? "bg-[linear-gradient(90deg,transparent,color-mix(in_oklab,var(--status-failed)_70%,transparent),transparent)]"
+                  : "bg-[linear-gradient(90deg,transparent,color-mix(in_oklab,var(--accent-primary)_45%,transparent),transparent)]"
+              }`}
+            />
             {/* Steps + the button */}
             <div className="flex flex-col justify-between gap-10 bg-surface p-6">
               <ul className="space-y-6">

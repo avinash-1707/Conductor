@@ -1,5 +1,5 @@
 import { ArrowRight } from "./icons";
-import { Folio } from "./primitives";
+import { Folio, GhostNumeral } from "./primitives";
 import { Reveal } from "./reveal";
 
 const FEATURES = [
@@ -51,7 +51,10 @@ const FEATURES = [
 export function FeatureIndex() {
   return (
     <section id="features" className="scroll-mt-24 py-28 md:py-36">
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="relative mx-auto max-w-6xl px-6">
+        <GhostNumeral className="right-2 top-0 text-[clamp(7rem,18vw,14rem)]">
+          04
+        </GhostNumeral>
         <Reveal>
           <Folio n="04" title="The spec sheet" />
         </Reveal>
@@ -66,7 +69,7 @@ export function FeatureIndex() {
           {FEATURES.map((feature, i) => (
             <Reveal key={feature.n} delay={60 + i * 50}>
               <div className="group grid grid-cols-[3rem_1fr_auto] items-baseline gap-x-6 border-t border-line-soft py-6 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[4rem_18rem_1fr_auto] md:gap-x-10 md:px-4">
-                <span className="font-mono text-sm tabular-nums text-faint">
+                <span className="ghost-word font-display text-3xl tabular-nums transition-colors duration-200 group-hover:[-webkit-text-stroke-color:var(--accent-primary)]">
                   {feature.n}
                 </span>
                 <h3 className="font-display text-xl tracking-tight md:text-2xl">

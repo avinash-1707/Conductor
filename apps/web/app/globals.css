@@ -457,6 +457,22 @@
   transition: transform 0.24s linear;
 }
 
+/* Engineering-paper dot grid, used behind the reliability demo. */
+.dot-grid {
+  background-image: radial-gradient(var(--border-default) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 75% 80% at 50% 45%,
+    black 30%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 75% 80% at 50% 45%,
+    black 30%,
+    transparent 78%
+  );
+}
+
 /* Giant outline wordmark in the footer. */
 .ghost-word {
   color: transparent;
