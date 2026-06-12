@@ -26,7 +26,7 @@ export default function AcceptInvitationPage() {
     if (isPending) return;
     if (!session) {
       router.replace(
-        `/login?next=${encodeURIComponent(`/accept-invitation/${invitationId}`)}`,
+        `/auth?next=${encodeURIComponent(`/accept-invitation/${invitationId}`)}`,
       );
       return;
     }
@@ -73,7 +73,7 @@ export default function AcceptInvitationPage() {
           </Button>
           <p className="text-xs text-muted">
             Signed in with the wrong account?{" "}
-            <Link href="/login" className="text-accent hover:underline">
+            <Link href="/auth" className="text-accent hover:underline">
               Switch account
             </Link>
           </p>

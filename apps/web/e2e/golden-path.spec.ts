@@ -16,7 +16,7 @@ test("golden path: sign up → checklist → launch → stream → approve → c
   const stamp = Date.now();
 
   // 1. Sign up — straight into naming the organization.
-  await page.goto("/signup");
+  await page.goto("/auth?mode=signup");
   await page.fill("#name", "Golden Path");
   await page.fill("#email", `golden-${stamp}@e2e.dev`);
   await page.fill("#password", "password-123");

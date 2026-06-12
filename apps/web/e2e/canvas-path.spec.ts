@@ -14,7 +14,7 @@ test("canvas path: draw → save v1 → launch → approve → completed", async
   const stamp = Date.now();
 
   // 1. Fresh account + org + stub key (the worker decrypts it for real).
-  await page.goto("/signup");
+  await page.goto("/auth?mode=signup");
   await page.fill("#name", "Canvas Author");
   await page.fill("#email", `canvas-${stamp}@e2e.dev`);
   await page.fill("#password", "password-123");

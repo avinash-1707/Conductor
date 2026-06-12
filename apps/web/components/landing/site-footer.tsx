@@ -12,13 +12,13 @@ export function SiteFooter() {
           </span>
           <span className="flex items-center gap-6">
             <Link
-              href="/login"
+              href="/auth"
               className="link-underline transition-colors duration-200 hover:text-ink"
             >
               sign in
             </Link>
             <Link
-              href="/signup"
+              href="/auth?mode=signup"
               className="link-underline transition-colors duration-200 hover:text-ink"
             >
               start free

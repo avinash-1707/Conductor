@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isPending) return;
     if (!session) {
-      router.replace("/login");
+      router.replace("/auth");
       return;
     }
     if (!session.session.activeOrganizationId) {

@@ -20,7 +20,7 @@ test("invite → accept link → new member joins and sees gated settings", asyn
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const owner = await ownerContext.newPage();
-  await owner.goto("/signup");
+  await owner.goto("/auth?mode=signup");
   await owner.fill("#name", "Org Owner");
   await owner.fill("#email", `owner-${stamp}@e2e.dev`);
   await owner.fill("#password", "password-123");
@@ -48,9 +48,9 @@ test("invite → accept link → new member joins and sees gated settings", asyn
   const inviteeContext = await browser.newContext();
   const invitee = await inviteeContext.newPage();
   await invitee.goto(acceptUrl);
-  await invitee.waitForURL("**/login?next=**");
-  await invitee.getByRole("link", { name: "Create an account" }).click();
-  await invitee.waitForURL("**/signup?next=**");
+  await invitee.waitForURL("**/auth?next=**");
+  await invitee.getByRole("button", { name: "Create an account" }).click();
+  await invitee.waitForURL("**/auth?mode=signup&next=**");
   await invitee.fill("#name", "Invited Reviewer");
   await invitee.fill("#email", inviteeEmail);
   await invitee.fill("#password", "password-123");

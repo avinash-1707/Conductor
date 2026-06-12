@@ -54,7 +54,7 @@ function UserMenu() {
     await signOut();
     clearSessionToken();
     clearApiJwt();
-    router.replace("/login");
+    router.replace("/auth");
   }
 
   return (

@@ -34,7 +34,7 @@ export function Hero() {
               className="rise mt-8 flex flex-wrap items-center gap-4"
               style={{ animationDelay: "460ms" }}
             >
-              <Button href="/signup">
+              <Button href="/auth?mode=signup">
                 Start free
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Button>

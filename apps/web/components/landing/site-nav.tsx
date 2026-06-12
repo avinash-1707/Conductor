@@ -59,10 +59,10 @@ export function SiteNav() {
 
         <div className="flex items-center gap-2.5">
           <ThemeToggle />
-          <Button href="/login" variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button href="/auth" variant="ghost" size="sm" className="hidden sm:inline-flex">
             Sign in
           </Button>
-          <Button href="/signup" size="sm">
+          <Button href="/auth?mode=signup" size="sm">
             Start free
           </Button>
         </div>

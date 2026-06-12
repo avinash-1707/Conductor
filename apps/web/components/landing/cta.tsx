@@ -29,11 +29,11 @@ export function CallToAction() {
         </Reveal>
         <Reveal delay={240}>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Button href="/signup">
+            <Button href="/auth?mode=signup">
               Start free
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Button>
-            <Button href="/login" variant="ghost">
+            <Button href="/auth" variant="ghost">
               Open the console
             </Button>
           </div>

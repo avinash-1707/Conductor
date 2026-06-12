@@ -24,7 +24,7 @@ export default function CreateOrgPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isPending && !session) router.replace("/login");
+    if (!isPending && !session) router.replace("/auth");
   }, [isPending, session, router]);
 
   // Creating an org is only for users who have none: anyone who already
@@ -96,7 +96,7 @@ export default function CreateOrgPage() {
         type="button"
         onClick={async () => {
           await signOut();
-          router.replace("/login");
+          router.replace("/auth");
         }}
         className="mt-6 w-full text-center text-xs text-faint transition-colors hover:text-muted"
       >
