@@ -5,7 +5,7 @@ import { Reveal } from "./reveal";
 
 export function CallToAction() {
   return (
-    <section className="relative overflow-hidden py-32 md:py-44">
+    <section className="relative overflow-hidden pb-44 pt-32 md:pb-60 md:pt-44">
       {/* Reprise of the hero backdrop: the page closes where it opened. */}
       <CyberGrid beamCount={12} />
       <div className="relative mx-auto max-w-6xl px-6 text-center">
