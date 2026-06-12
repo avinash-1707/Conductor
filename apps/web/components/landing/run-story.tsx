@@ -160,7 +160,7 @@ export function RunStory() {
         <div className="mt-16 grid gap-12 lg:grid-cols-[220px_1fr] lg:gap-16">
           {/* Timeline rail — the product's signature element. */}
           <div className="hidden lg:block">
-            <div className="sticky top-28">
+            <div className="sticky top-44">
               <ol className="relative ml-1 border-l border-line">
                 {RAIL.map((item) => {
                   const status = stepStatus(phase, item.key);
