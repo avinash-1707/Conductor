@@ -20,6 +20,8 @@ test("golden path: sign up → checklist → launch → stream → approve → c
   await page.fill("#name", "Golden Path");
   await page.fill("#email", `golden-${stamp}@e2e.dev`);
   await page.fill("#password", "password-123");
+  await page.fill("#confirm-password", "password-123");
+  await page.check("input[type=checkbox]");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/create-org");
 

@@ -24,6 +24,8 @@ test("invite → accept link → new member joins and sees gated settings", asyn
   await owner.fill("#name", "Org Owner");
   await owner.fill("#email", `owner-${stamp}@e2e.dev`);
   await owner.fill("#password", "password-123");
+  await owner.fill("#confirm-password", "password-123");
+  await owner.check("input[type=checkbox]");
   await owner.getByRole("button", { name: "Create account" }).click();
   await owner.waitForURL("**/create-org");
   await owner.fill("#org-name", `Invite Org ${stamp}`);
@@ -52,6 +54,8 @@ test("invite → accept link → new member joins and sees gated settings", asyn
   await invitee.fill("#name", "Invited Reviewer");
   await invitee.fill("#email", inviteeEmail);
   await invitee.fill("#password", "password-123");
+  await invitee.fill("#confirm-password", "password-123");
+  await invitee.check("input[type=checkbox]");
   await invitee.getByRole("button", { name: "Create account" }).click();
 
   // The `next` param brings them back; the page accepts and lands on /runs

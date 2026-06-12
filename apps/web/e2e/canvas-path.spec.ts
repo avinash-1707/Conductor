@@ -18,6 +18,8 @@ test("canvas path: draw → save v1 → launch → approve → completed", async
   await page.fill("#name", "Canvas Author");
   await page.fill("#email", `canvas-${stamp}@e2e.dev`);
   await page.fill("#password", "password-123");
+  await page.fill("#confirm-password", "password-123");
+  await page.check("input[type=checkbox]");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/create-org");
   await page.fill("#org-name", `Canvas Org ${stamp}`);
