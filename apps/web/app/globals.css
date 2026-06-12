@@ -404,6 +404,25 @@
     box-shadow 0.52s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* Primary buttons: a light sheen sweeps across the fill on hover. */
+.btn-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.38) 50%,
+    transparent 65%
+  );
+  transform: translateX(-160%);
+  transition: transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.btn-sheen:hover::after {
+  transform: translateX(160%);
+}
+
 /* Animated underline for nav and footer links. */
 .link-underline {
   position: relative;
@@ -492,19 +511,17 @@
   );
 }
 .cyber-floor-grid {
+  /* Stronger lines in dark; light keeps the quieter value. */
+  --cyber-grid-line: color-mix(in oklab, var(--accent-primary) 68%, transparent);
   position: absolute;
   inset: 0 0 -60px;
-  background-image: linear-gradient(
-      color-mix(in oklab, var(--accent-primary) 42%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--accent-primary) 42%, transparent) 1px,
-      transparent 1px
-    );
+  background-image: linear-gradient(var(--cyber-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cyber-grid-line) 1px, transparent 1px);
   background-size: 60px 60px;
   animation: grid-travel 4s linear infinite;
+}
+:root.light .cyber-floor-grid {
+  --cyber-grid-line: color-mix(in oklab, var(--accent-primary) 42%, transparent);
 }
 @keyframes grid-travel {
   from {

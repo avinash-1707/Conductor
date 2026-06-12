@@ -69,7 +69,7 @@ export function Eyebrow({
 }
 
 const BUTTON_BASE =
-  "group inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-[background-color,border-color,box-shadow,transform] duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas";
+  "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-md text-sm font-medium transition-[background-color,border-color,box-shadow,translate,scale] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas";
 
 const BUTTON_SIZE = {
   md: "h-11 px-5",
@@ -80,9 +80,9 @@ const BUTTON_SIZE = {
 // on a theme-color utility being registered (keeps it robust across rebuilds).
 const BUTTON_VARIANT = {
   primary:
-    "bg-[var(--accent-fill)] text-[var(--accent-fg)] hover:bg-[var(--accent-fill-hi)] shadow-[0_10px_30px_-12px_var(--glow-accent)]",
+    "btn-sheen bg-[var(--accent-fill)] text-[var(--accent-fg)] hover:bg-[var(--accent-fill-hi)] shadow-[0_10px_30px_-12px_var(--glow-accent)] hover:shadow-[0_14px_38px_-12px_var(--glow-accent)]",
   ghost:
-    "border border-line bg-surface/50 text-ink hover:bg-raised hover:border-line",
+    "border border-line bg-surface/50 text-ink hover:bg-raised hover:border-[color:var(--text-faint)]",
   danger:
     "border border-line bg-surface/50 text-failed hover:bg-raised hover:border-[color:var(--status-failed)]",
 } as const;
