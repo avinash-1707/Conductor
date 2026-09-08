@@ -54,6 +54,11 @@ export interface ResearchLLM {
 /** Each LLM call is bounded well under the activity's 2-minute timeout. */
 const LLM_CALL_TIMEOUT_MS = 60_000;
 
+export const RESEARCH_PROMPT_VERSIONS = {
+  gather: "research.gather@v1",
+  synthesize: "research.synthesize@v1",
+} as const;
+
 /**
  * OpenRouter-backed {@link ResearchLLM}. Built per-activity-invocation from the
  * key + model the activity resolves (env in Phase 1; the org's decrypted key in

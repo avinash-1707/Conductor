@@ -44,6 +44,12 @@ export interface WritingLLM {
 /** Drafting/refine calls run longer than research; stay under the activity timeout. */
 const LLM_CALL_TIMEOUT_MS = 90_000;
 
+export const WRITING_PROMPT_VERSIONS = {
+  outline: "writing.outline@v1",
+  draft: "writing.draft@v1",
+  refine: "writing.refine@v1",
+} as const;
+
 function findingsBlock(findings: ResearchFindings): string {
   const sources = findings.sources
     .map((s, i) => `${i + 1}. ${s.title} — ${s.takeaway} (${s.url})`)
