@@ -1,6 +1,6 @@
 import { ApplicationFailure } from "@temporalio/activity";
 import type { z } from "zod";
-import type { StepKind } from "@conductor/shared";
+import type { LlmCallObservation, StepKind } from "@conductor/shared";
 import { repos } from "../db";
 import { logger } from "../logger";
 import { publishRunEvent, publishTokenEvent } from "../realtime/publisher";
@@ -15,6 +15,7 @@ import { workflowExecutionContext } from "./activity-context";
 export interface StepContext {
   runId: string;
   emitToken: (delta: string) => void;
+  recordLlmObservation: (observation: LlmCallObservation) => Promise<void>;
 }
 
 /**
@@ -104,6 +105,18 @@ export function withStepTracking<I extends { orgId: string }, O>(
       runId: run.id,
       emitToken: (delta: string) => {
         void publishTokenEvent({ type: "token", runId: run.id, step: stepKind, delta });
+      },
+      recordLlmObservation: async (observation) => {
+        try {
+          await repos.activityLog.recordLlmObservation({
+            orgId: input.orgId,
+            runId: run.id,
+            stepKind,
+            observation,
+          });
+        } catch (projectionErr) {
+          log.error({ err: projectionErr }, "LLM observation projection write failed");
+        }
       },
     };
 

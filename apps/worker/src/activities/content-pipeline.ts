@@ -56,9 +56,11 @@ export const research = withStepTracking(
       env.LLM_MODE === "mock"
         ? createMockResearchLLM({ onDelta: ctx.emitToken })
         : createOpenRouterResearchLLM({
-            apiKey,
-            model: researchModel,
-            onDelta: ctx.emitToken,
+          apiKey,
+          model: researchModel,
+          tier: researchTier,
+          onDelta: ctx.emitToken,
+          onObservation: ctx.recordLlmObservation,
           });
     return runResearch({ topic, keywords, tone }, llm);
   },
@@ -92,9 +94,11 @@ export const writeDraft = withStepTracking(
       env.LLM_MODE === "mock"
         ? createMockWritingLLM({ onDelta: ctx.emitToken })
         : createOpenRouterWritingLLM({
-            apiKey,
-            model: writingModel,
-            onDelta: ctx.emitToken,
+          apiKey,
+          model: writingModel,
+          tier: writingTier,
+          onDelta: ctx.emitToken,
+          onObservation: ctx.recordLlmObservation,
           });
     return runWriting({ topic, keywords, tone, wordCount, findings }, llm);
   },

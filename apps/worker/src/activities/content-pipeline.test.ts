@@ -31,6 +31,7 @@ vi.mock("../db", () => ({
     },
     activityLog: {
       startStepAttempt: vi.fn(),
+      recordLlmObservation: vi.fn(),
       completeStep: vi.fn(),
       failStepAttempt: vi.fn(),
     },
@@ -130,6 +131,7 @@ beforeEach(() => {
   vi.mocked(repos.activityLog.startStepAttempt).mockResolvedValue(
     {} as Awaited<ReturnType<typeof repos.activityLog.startStepAttempt>>,
   );
+  vi.mocked(repos.activityLog.recordLlmObservation).mockResolvedValue(undefined);
   vi.mocked(repos.activityLog.completeStep).mockResolvedValue(undefined);
   vi.mocked(repos.activityLog.failStepAttempt).mockResolvedValue(undefined);
   vi.mocked(runResearch).mockResolvedValue(FINDINGS);
@@ -160,7 +162,9 @@ describe("research activity (org key)", () => {
     expect(createOpenRouterResearchLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "anthropic/claude-sonnet-4.5",
+      tier: "fast",
       onDelta: expect.any(Function),
+      onObservation: expect.any(Function),
     });
     expect(runResearch).toHaveBeenCalledWith(
       { topic: "Topic", keywords: ["k"], tone: "technical" },
@@ -190,7 +194,9 @@ describe("research activity (org key)", () => {
     expect(createOpenRouterResearchLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "google/gemini-3.5-flash",
+      tier: "fast",
       onDelta: expect.any(Function),
+      onObservation: expect.any(Function),
     });
   });
 
@@ -266,7 +272,9 @@ describe("writeDraft activity", () => {
     expect(createOpenRouterWritingLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "anthropic/claude-opus-4.8",
+      tier: "quality",
       onDelta: expect.any(Function),
+      onObservation: expect.any(Function),
     });
   });
 
@@ -293,7 +301,9 @@ describe("writeDraft activity", () => {
     expect(createOpenRouterWritingLLM).toHaveBeenCalledWith({
       apiKey: ORG_KEY,
       model: "openai/gpt-5.5-pro",
+      tier: "quality",
       onDelta: expect.any(Function),
+      onObservation: expect.any(Function),
     });
   });
 });

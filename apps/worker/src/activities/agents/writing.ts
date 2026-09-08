@@ -2,12 +2,14 @@ import { z } from "zod";
 import { generateObject, streamObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
+import type { ModelTier } from "@conductor/shared";
 import {
   blogDraftSchema,
   type BlogDraft,
   type BlogTone,
   type ResearchFindings,
 } from "@conductor/shared";
+import { runLlmCall, type LlmCallConfig } from "./llm-call";
 
 /**
  * Writing agent — a LangGraph sub-graph (outline → draft → refine → finalize)
@@ -68,7 +70,9 @@ function findingsBlock(findings: ResearchFindings): string {
 export function createOpenRouterWritingLLM(config: {
   apiKey: string;
   model: string;
+  tier: ModelTier;
   onDelta?: (delta: string) => void;
+  onObservation?: LlmCallConfig["onObservation"];
 }): WritingLLM {
   const openrouter = createOpenRouter({ apiKey: config.apiKey });
   const model = openrouter.chat(config.model);
@@ -76,21 +80,26 @@ export function createOpenRouterWritingLLM(config: {
 
   return {
     async outline(input) {
-      const { object } = await generateObject({
-        model,
-        schema: outlineSchema,
-        maxRetries: 1,
-        abortSignal: signal(),
-        system:
-          "You are a content strategist. Produce a tight section outline for a content piece, " +
-          "grounded in the supplied research.",
-        prompt:
-          `Topic: ${input.topic}\nKeywords: ${input.keywords.join(", ")}\n` +
-          `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
-          `Research:\n${findingsBlock(input.findings)}\n\n` +
-          "Return an ordered list of section headings/beats for the piece.",
-      });
-      return object;
+      const system =
+        "You are a content strategist. Produce a tight section outline for a content piece, " +
+        "grounded in the supplied research.";
+      const prompt =
+        `Topic: ${input.topic}\nKeywords: ${input.keywords.join(", ")}\n` +
+        `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
+        `Research:\n${findingsBlock(input.findings)}\n\n` +
+        "Return an ordered list of section headings/beats for the piece.";
+      return runLlmCall(
+        { ...config, operation: "writing.outline", promptVersion: WRITING_PROMPT_VERSIONS.outline },
+        (repairInstruction) =>
+          generateObject({
+            model,
+            schema: outlineSchema,
+            maxRetries: 0,
+            abortSignal: signal(),
+            system: repairInstruction ? `${system}\n\n${repairInstruction}` : system,
+            prompt,
+          }),
+      );
     },
 
     async draft(input) {
@@ -104,37 +113,57 @@ export function createOpenRouterWritingLLM(config: {
         `Research:\n${findingsBlock(input.findings)}\n\n` +
         "Write the full draft now.";
 
-      if (config.onDelta) {
-        const result = streamObject({ model, schema: draftSchema, maxRetries: 1, abortSignal: signal(), system, prompt });
-        let emitted = 0;
-        for await (const partial of result.partialObjectStream) {
-          const text = partial.markdown ?? "";
-          if (text.length > emitted) {
-            config.onDelta(text.slice(emitted));
-            emitted = text.length;
+      return runLlmCall(
+        { ...config, operation: "writing.draft", promptVersion: WRITING_PROMPT_VERSIONS.draft },
+        async (repairInstruction) => {
+          const repairedSystem = repairInstruction ? `${system}\n\n${repairInstruction}` : system;
+          if (!config.onDelta || repairInstruction) {
+            return generateObject({
+              model,
+              schema: draftSchema,
+              maxRetries: 0,
+              abortSignal: signal(),
+              system: repairedSystem,
+              prompt,
+            });
           }
-        }
-        return await result.object;
-      }
-
-      const { object } = await generateObject({ model, schema: draftSchema, maxRetries: 1, abortSignal: signal(), system, prompt });
-      return object;
+          const result = streamObject({ model, schema: draftSchema, maxRetries: 0, abortSignal: signal(), system, prompt });
+          let emitted = 0;
+          for await (const partial of result.partialObjectStream) {
+            const text = partial.markdown ?? "";
+            if (text.length > emitted) {
+              config.onDelta(text.slice(emitted));
+              emitted = text.length;
+            }
+          }
+          return {
+            object: await result.object,
+            usage: await result.usage,
+            providerMetadata: await result.providerMetadata,
+          };
+        },
+      );
     },
 
     async refine(input) {
-      const { object } = await generateObject({
-        model,
-        schema: draftSchema,
-        maxRetries: 1,
-        abortSignal: signal(),
-        system:
-          "You are an editor. Tighten the draft: improve flow and clarity, enforce the tone, " +
-          "fix weak transitions, and keep it close to the target length. Return the full revised post.",
-        prompt:
-          `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
-          `Current title: ${input.draft.title}\n\nCurrent draft:\n${input.draft.markdown}`,
-      });
-      return object;
+      const system =
+        "You are an editor. Tighten the draft: improve flow and clarity, enforce the tone, " +
+        "fix weak transitions, and keep it close to the target length. Return the full revised post.";
+      const prompt =
+        `Tone: ${input.tone}\nTarget length: ~${input.wordCount} words\n\n` +
+        `Current title: ${input.draft.title}\n\nCurrent draft:\n${input.draft.markdown}`;
+      return runLlmCall(
+        { ...config, operation: "writing.refine", promptVersion: WRITING_PROMPT_VERSIONS.refine },
+        (repairInstruction) =>
+          generateObject({
+            model,
+            schema: draftSchema,
+            maxRetries: 0,
+            abortSignal: signal(),
+            system: repairInstruction ? `${system}\n\n${repairInstruction}` : system,
+            prompt,
+          }),
+      );
     },
   };
 }

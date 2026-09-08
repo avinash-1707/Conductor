@@ -2,11 +2,13 @@ import { z } from "zod";
 import { generateObject, streamObject } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
+import type { ModelTier } from "@conductor/shared";
 import {
   researchFindingsSchema,
   type BlogTone,
   type ResearchFindings,
 } from "@conductor/shared";
+import { runLlmCall, type LlmCallConfig } from "./llm-call";
 
 /**
  * Research agent — a LangGraph sub-graph (gather → synthesize → validate) that
@@ -70,30 +72,37 @@ export const RESEARCH_PROMPT_VERSIONS = {
 export function createOpenRouterResearchLLM(config: {
   apiKey: string;
   model: string;
+  tier: ModelTier;
   onDelta?: (delta: string) => void;
+  onObservation?: LlmCallConfig["onObservation"];
 }): ResearchLLM {
   const openrouter = createOpenRouter({ apiKey: config.apiKey });
   const model = openrouter.chat(config.model);
 
   return {
     async gatherSources(input) {
-      const { object } = await generateObject({
-        model,
-        schema: gatherSchema,
-        maxRetries: 1,
-        abortSignal: AbortSignal.timeout(LLM_CALL_TIMEOUT_MS),
-        system:
-          "You are a meticulous research assistant for a content team. " +
-          "Propose credible source angles for a content piece and capture synthesis notes. " +
-          "Each source needs a title, a plausible URL, and a one-sentence takeaway.",
-        prompt:
-          `Topic: ${input.topic}\n` +
-          `Target keywords: ${input.keywords.join(", ")}\n` +
-          `Intended tone: ${input.tone}\n\n` +
-          "Identify 3-6 distinct, credible source angles a writer should ground this piece in, " +
-          "then write concise synthesis notes tying them to the topic.",
-      });
-      return object;
+      const system =
+        "You are a meticulous research assistant for a content team. " +
+        "Propose credible source angles for a content piece and capture synthesis notes. " +
+        "Each source needs a title, a plausible URL, and a one-sentence takeaway.";
+      const prompt =
+        `Topic: ${input.topic}\n` +
+        `Target keywords: ${input.keywords.join(", ")}\n` +
+        `Intended tone: ${input.tone}\n\n` +
+        "Identify 3-6 distinct, credible source angles a writer should ground this piece in, " +
+        "then write concise synthesis notes tying them to the topic.";
+      return runLlmCall(
+        { ...config, operation: "research.gather", promptVersion: RESEARCH_PROMPT_VERSIONS.gather },
+        (repairInstruction) =>
+          generateObject({
+            model,
+            schema: gatherSchema,
+            maxRetries: 0,
+            abortSignal: AbortSignal.timeout(LLM_CALL_TIMEOUT_MS),
+            system: repairInstruction ? `${system}\n\n${repairInstruction}` : system,
+            prompt,
+          }),
+      );
     },
 
     async synthesize(input) {
@@ -112,22 +121,36 @@ export function createOpenRouterResearchLLM(config: {
         "Write a 2-4 sentence summary and 3-7 key points grounded in the sources above.";
       const abortSignal = AbortSignal.timeout(LLM_CALL_TIMEOUT_MS);
 
-      if (config.onDelta) {
-        const result = streamObject({ model, schema: synthSchema, maxRetries: 1, abortSignal, system, prompt });
-        let emitted = 0;
-        for await (const partial of result.partialObjectStream) {
-          const text = partial.summary ?? "";
-          if (text.length > emitted) {
-            config.onDelta(text.slice(emitted));
-            emitted = text.length;
+      return runLlmCall(
+        { ...config, operation: "research.synthesize", promptVersion: RESEARCH_PROMPT_VERSIONS.synthesize },
+        async (repairInstruction) => {
+          const repairedSystem = repairInstruction ? `${system}\n\n${repairInstruction}` : system;
+          if (!config.onDelta || repairInstruction) {
+            return generateObject({
+              model,
+              schema: synthSchema,
+              maxRetries: 0,
+              abortSignal,
+              system: repairedSystem,
+              prompt,
+            });
           }
-        }
-        // The validated object is the activity's return value (Temporal payload).
-        return await result.object;
-      }
-
-      const { object } = await generateObject({ model, schema: synthSchema, maxRetries: 1, abortSignal, system, prompt });
-      return object;
+          const result = streamObject({ model, schema: synthSchema, maxRetries: 0, abortSignal, system, prompt });
+          let emitted = 0;
+          for await (const partial of result.partialObjectStream) {
+            const text = partial.summary ?? "";
+            if (text.length > emitted) {
+              config.onDelta(text.slice(emitted));
+              emitted = text.length;
+            }
+          }
+          return {
+            object: await result.object,
+            usage: await result.usage,
+            providerMetadata: await result.providerMetadata,
+          };
+        },
+      );
     },
   };
 }

@@ -15,6 +15,7 @@ vi.mock("../db", () => ({
     },
     activityLog: {
       startStepAttempt: vi.fn(),
+      recordLlmObservation: vi.fn(),
       completeStep: vi.fn(),
       failStepAttempt: vi.fn(),
     },
@@ -73,6 +74,7 @@ beforeEach(() => {
   vi.mocked(repos.activityLog.startStepAttempt).mockResolvedValue(
     {} as Awaited<ReturnType<typeof repos.activityLog.startStepAttempt>>,
   );
+  vi.mocked(repos.activityLog.recordLlmObservation).mockResolvedValue(undefined);
   vi.mocked(repos.activityLog.completeStep).mockResolvedValue(undefined);
   vi.mocked(repos.activityLog.failStepAttempt).mockResolvedValue(undefined);
 });
@@ -203,6 +205,37 @@ describe("withStepTracking", () => {
       runId: RUN.id,
       step: "research",
     });
+  });
+
+  it("persists LLM observations best-effort outside the activity output", async () => {
+    const tracked = withStepTracking("research", inputSchema, async (i, ctx) => {
+      await ctx.recordLlmObservation({
+        operation: "research.gather",
+        model: "provider/model",
+        tier: "fast",
+        promptVersion: "research.gather@v1",
+        latencyMs: 12,
+        inputTokens: 4,
+        outputTokens: 2,
+        totalTokens: 6,
+        costUsd: 0.001,
+        repaired: false,
+      });
+      return i.value;
+    });
+
+    await expect(activityEnv(1).run(tracked, input)).resolves.toBe(7);
+    expect(repos.activityLog.recordLlmObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        runId: RUN.id,
+        stepKind: "research",
+        observation: expect.objectContaining({ operation: "research.gather" }),
+      }),
+    );
+    expect(repos.activityLog.completeStep).toHaveBeenCalledWith(
+      expect.objectContaining({ output: 7 }),
+    );
   });
 
   it("still emits a stream `done` when the step fails", async () => {

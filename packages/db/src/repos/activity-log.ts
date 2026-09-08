@@ -1,5 +1,5 @@
-import { and, asc, eq } from "drizzle-orm";
-import type { StepKind } from "@conductor/shared";
+import { and, asc, eq, sql } from "drizzle-orm";
+import type { LlmCallObservation, StepKind } from "@conductor/shared";
 import type { Db } from "../client";
 import { activityLog } from "../schema";
 
@@ -73,6 +73,29 @@ export function createActivityLogRepo(db: Db) {
         })
         .returning();
       return rows[0]!;
+    },
+
+    async recordLlmObservation(args: {
+      orgId: string;
+      runId: string;
+      stepKind: StepKind;
+      observation: LlmCallObservation;
+    }): Promise<Step | undefined> {
+      const rows = await db
+        .update(activityLog)
+        .set({
+          llmObservations: sql<LlmCallObservation[]>`coalesce(${activityLog.llmObservations}, '[]'::jsonb) || ${JSON.stringify([args.observation])}::jsonb`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(activityLog.orgId, args.orgId),
+            eq(activityLog.runId, args.runId),
+            eq(activityLog.stepKind, args.stepKind),
+          ),
+        )
+        .returning();
+      return rows[0];
     },
 
     async completeStep(args: {
