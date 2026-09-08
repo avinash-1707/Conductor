@@ -56,6 +56,7 @@ function patchRunDetail(prev: RunDetailResponse | undefined, event: RunEvent): R
         error: null,
         startedAt: event.at,
         completedAt: done ? event.at : null,
+        llmObservations: [],
       };
       steps = [...prev.steps, placeholder];
     }

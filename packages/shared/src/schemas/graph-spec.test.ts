@@ -260,8 +260,8 @@ describe("executionOrder", () => {
   it("returns the blog pipeline chain in order", () => {
     expect(executionOrder(blogPostPipelineSpec).map((n) => n.id)).toEqual([
       "research",
-      "approval",
       "write",
+      "approval",
       "publish",
     ]);
   });

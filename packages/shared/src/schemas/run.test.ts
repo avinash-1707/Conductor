@@ -38,6 +38,7 @@ const validStep = {
   error: null,
   startedAt: "2026-06-10T12:00:01.000Z",
   completedAt: "2026-06-10T12:00:05.000Z",
+  llmObservations: [],
 };
 
 describe("runSchema", () => {
