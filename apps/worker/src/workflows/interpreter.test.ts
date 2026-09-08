@@ -189,12 +189,12 @@ describe("interpreterWorkflow", () => {
     expect(tracker.publishCalls).toBe(1);
     // The projection anchors under the spec's (customer-facing) name.
     expect(tracker.runStarted[0]).toMatchObject({ workflowName: "Blog Post Pipeline" });
-    // The gate record carries the org and the research context the reviewer renders.
+    // The gate record carries the completed draft so approval explicitly authorizes publishing.
     expect(tracker.approvalRequests).toHaveLength(1);
     expect(tracker.approvalRequests[0]).toMatchObject({
       orgId: "org-1",
       approverId: params.approverId,
-      context: { research: findings },
+      context: { research: findings, draft },
     });
     expect(tracker.terminal).toHaveLength(1);
     expect(tracker.terminal[0]).toMatchObject({ orgId: "org-1", status: "completed" });
@@ -257,7 +257,7 @@ describe("interpreterWorkflow", () => {
     expect(tracker.terminal[0]).toMatchObject({ status: "failed", failedStep: "research" });
   });
 
-  it("ends gracefully as rejected and never writes or publishes", async () => {
+  it("ends gracefully as rejected after drafting and never publishes", async () => {
     const { tracker, activities } = makeMocks();
     const taskQueue = "test-interpreter-reject";
 
@@ -279,7 +279,7 @@ describe("interpreterWorkflow", () => {
         decidedAt: approvedPayload.decidedAt,
       });
     });
-    expect(tracker.writeCalls).toBe(0);
+    expect(tracker.writeCalls).toBe(1);
     expect(tracker.publishCalls).toBe(0);
     expect(tracker.terminal).toHaveLength(1);
     expect(tracker.terminal[0]).toMatchObject({ status: "rejected" });
@@ -300,7 +300,7 @@ describe("interpreterWorkflow", () => {
       expect(result).toEqual({ status: "expired" });
     });
     expect(tracker.researchAttempts).toBe(1);
-    expect(tracker.writeCalls).toBe(0);
+    expect(tracker.writeCalls).toBe(1);
     expect(tracker.publishCalls).toBe(0);
     expect(tracker.terminal).toHaveLength(1);
     expect(tracker.terminal[0]).toMatchObject({ status: "expired" });

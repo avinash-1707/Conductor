@@ -109,21 +109,21 @@ export interface TemplateDefinition {
   toEngineParams(params: Record<string, unknown>): EngineParams;
 }
 
-/** A linear research → approval → write → publish chain under a template name. */
+/** A linear research → write → approval → publish chain under a template name. */
 function contentChainSpec(name: string): GraphSpec {
   return graphSpecSchema.parse({
     specVersion: GRAPH_SPEC_VERSION,
     name,
     nodes: [
       { id: "research", type: "research" },
-      { id: "approval", type: "approval" },
       { id: "write", type: "write" },
+      { id: "approval", type: "approval" },
       { id: "publish", type: "publish" },
     ],
     edges: [
-      { from: "research", to: "approval" },
-      { from: "approval", to: "write" },
-      { from: "write", to: "publish" },
+      { from: "research", to: "write" },
+      { from: "write", to: "approval" },
+      { from: "approval", to: "publish" },
     ],
   });
 }
@@ -157,7 +157,7 @@ export const templateCatalog = {
     key: "blog-post-pipeline",
     name: blogPostPipelineSpec.name,
     description:
-      "research → approval → write → publish. Research streams live, pauses for your reviewer, then drafts and delivers.",
+      "research → write → approval → publish. Research and drafting stream live, then a reviewer approves delivery.",
     spec: blogPostPipelineSpec,
     paramsSchema: blogPostPipelineInputSchema,
     fields: [

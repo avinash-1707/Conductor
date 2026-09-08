@@ -12,7 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:content": "vitest run src/evals/content.eval.test.ts"
   },
   "dependencies": {
     "@conductor/db": "workspace:*",

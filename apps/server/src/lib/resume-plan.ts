@@ -13,8 +13,9 @@ import type { Step } from "@conductor/db";
  *
  * The interpreter skips any node whose `produces` channel is supplied here
  * (publish — which produces nothing — always re-runs: it never delivered) and
- * skips the gate only when `gateApproved`. A completed write step implies the
- * gate was passed, so `gateApproved` is forced true when the draft is carried.
+ * skips the gate only when `gateApproved`. A completed write does not prove
+ * the reviewer authorized publish: gate creation or approval may have failed
+ * after the draft completed.
  *
  * JSONB outputs are Zod-parsed on read (code-standards Data & Storage): a
  * step whose stored output no longer parses is treated as not completed and
@@ -42,8 +43,7 @@ export function buildResumePlan(steps: Step[], approvalApproved: boolean): Resum
     return {
       resume: {
         channels: { research: research.data, draft: write.data },
-        // A completed write step can only exist past an approved gate.
-        gateApproved: true,
+        gateApproved: approvalApproved,
       },
       carriedSteps: [researchRow, writeRow],
     };

@@ -5,6 +5,7 @@ import {
   defineSignal,
   isCancellation,
   log,
+  patched,
   proxyActivities,
   setHandler,
   workflowInfo,
@@ -180,12 +181,19 @@ export async function interpreterWorkflow(
         if (resumeFrom?.gateApproved) continue;
         state = { status: "suspended", currentStep: "approval" };
         const findings = requireChannel(channels.research, node, "research");
+        const draft = channels.draft;
         // Short record-write; the human wait is the signal + condition below
         // (invariant 3 — no activity ever blocks on a person).
         await createApprovalRequest({
           orgId,
           approverId: engine.approverId,
-          context: { research: findings },
+          // Record a Temporal patch marker before changing an activity command.
+          // Existing histories replay the legacy payload; new post-draft gates
+          // expose the draft so approval authorizes the publish side effect.
+          context:
+            draft && patched("approval-context-includes-draft-v1")
+              ? { research: findings, draft }
+              : { research: findings },
         });
         const timeoutHours = node.config.timeoutHours ?? activityRegistry.approval.defaults.timeoutHours;
         await condition(() => decision !== undefined, `${timeoutHours} hours`);

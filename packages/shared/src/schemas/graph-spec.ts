@@ -20,7 +20,7 @@ export const GRAPH_SPEC_VERSION = 1;
  * code; `activity` names are pinned by the worker's exported activities (the
  * same start-by-name convention the server's RunGateway uses).
  *
- * Channels model v1 data flow: a node type `produces` a named value into the
+ * Channels model data flow: a node type `produces` a named value into the
  * run's channel bag and `consumes` channels earlier nodes must have produced.
  * Defaults mirror the hardcoded contentPipeline's proxy options.
  */
@@ -297,22 +297,22 @@ export function executionOrder(spec: GraphSpec): GraphNode[] {
 }
 
 /**
- * The canonical Blog Post Pipeline as a graph spec — must stay behaviorally
- * identical to the hardcoded contentPipeline (Unit 25 proves it; Unit 26
- * seeds the curated template from it and retires the hardcoded workflow).
+ * The canonical Blog Post Pipeline reviews the finished draft before the
+ * side-effecting publish step. Existing immutable definitions retain their
+ * original ordering and continue to run from their pinned spec.
  */
 export const blogPostPipelineSpec: GraphSpec = graphSpecSchema.parse({
   specVersion: GRAPH_SPEC_VERSION,
   name: "Blog Post Pipeline",
   nodes: [
     { id: "research", type: "research" },
-    { id: "approval", type: "approval" },
     { id: "write", type: "write" },
+    { id: "approval", type: "approval" },
     { id: "publish", type: "publish" },
   ],
   edges: [
-    { from: "research", to: "approval" },
-    { from: "approval", to: "write" },
-    { from: "write", to: "publish" },
+    { from: "research", to: "write" },
+    { from: "write", to: "approval" },
+    { from: "approval", to: "publish" },
   ],
 });
