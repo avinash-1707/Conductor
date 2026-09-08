@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { runStatusSchema, stepKindSchema, stepStatusSchema } from "./status";
 import { blogPostPipelineOutputSchema } from "./blog-pipeline";
+import { llmCallObservationSchema } from "./llm-observability";
 
 /**
  * Run-API resource contracts (Unit 13). The server serializes projection rows
@@ -25,7 +26,7 @@ export const runSchema = z.object({
   /** The pinned `workflow_definitions` version row (Unit 30); null on legacy rows. */
   definitionId: z.uuid().nullable(),
   startedAt: z.iso.datetime().nullable(),
-  completedAt: z.iso.datetime().nullable(),
+    completedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 });
 export type RunResource = z.infer<typeof runSchema>;
@@ -40,7 +41,8 @@ export const runStepSchema = z.object({
   output: z.unknown().nullable(),
   error: z.string().nullable(),
   startedAt: z.iso.datetime().nullable(),
-  completedAt: z.iso.datetime().nullable(),
+    completedAt: z.iso.datetime().nullable(),
+    llmObservations: z.array(llmCallObservationSchema),
 });
 export type RunStepResource = z.infer<typeof runStepSchema>;
 

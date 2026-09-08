@@ -64,6 +64,7 @@ function toStepResource(step: Step): RunStepResource {
     error: step.error,
     startedAt: step.startedAt?.toISOString() ?? null,
     completedAt: step.completedAt?.toISOString() ?? null,
+    llmObservations: step.llmObservations,
   };
 }
 

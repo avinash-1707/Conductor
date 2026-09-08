@@ -16,6 +16,7 @@ import type {
   ApprovalContext,
   GraphSpec,
   PublishReceipt,
+  LlmCallObservation,
 } from "@conductor/shared";
 import { organization } from "./auth";
 
@@ -153,6 +154,7 @@ export const activityLog = pgTable(
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    llmObservations: jsonb("llm_observations").$type<LlmCallObservation[]>().default([]).notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

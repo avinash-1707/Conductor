@@ -35,6 +35,7 @@ function makeStep(args: {
     error: null,
     startedAt: new Date("2026-06-10T12:00:00.000Z"),
     completedAt: new Date("2026-06-10T12:01:00.000Z"),
+    llmObservations: [],
     createdAt: new Date("2026-06-10T12:00:00.000Z"),
     updatedAt: new Date("2026-06-10T12:01:00.000Z"),
   };

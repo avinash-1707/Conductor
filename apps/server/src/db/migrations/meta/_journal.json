@@ -50,6 +50,13 @@
       "when": 1781154896070,
       "tag": "0006_org_model_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788873000000,
+      "tag": "0007_activity_log_llm_observations",
+      "breakpoints": true
     }
   ]
 }
