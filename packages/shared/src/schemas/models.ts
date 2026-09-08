@@ -15,6 +15,10 @@ export const modelIdSchema = z
   .regex(/^[a-z0-9-]+\/[a-zA-Z0-9._:-]+$/, "Expected an OpenRouter `provider/model` slug");
 export type ModelId = z.infer<typeof modelIdSchema>;
 
+/** Execution intent, independent of a customer's chosen provider/model slug. */
+export const modelTierSchema = z.enum(["fast", "quality"]);
+export type ModelTier = z.infer<typeof modelTierSchema>;
+
 /** One selectable catalog entry. Paid models (`free: false`) get the star marker in the UI. */
 export const modelOptionSchema = z.object({
   id: modelIdSchema,

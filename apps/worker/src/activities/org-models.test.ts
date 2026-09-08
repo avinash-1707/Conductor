@@ -61,6 +61,8 @@ describe("resolveOrgModels", () => {
     expect(await resolveOrgModels(orgId)).toEqual({
       researchModel: "anthropic/claude-sonnet-4.5",
       writingModel: "anthropic/claude-opus-4.8",
+      researchTier: "fast",
+      writingTier: "quality",
     });
   });
 
@@ -73,6 +75,8 @@ describe("resolveOrgModels", () => {
     expect(await resolveOrgModels(orgId)).toEqual({
       researchModel: "google/gemini-3.5-flash",
       writingModel: "anthropic/claude-opus-4.8",
+      researchTier: "fast",
+      writingTier: "quality",
     });
   });
 

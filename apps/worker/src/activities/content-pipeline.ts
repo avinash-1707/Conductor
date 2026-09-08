@@ -43,10 +43,10 @@ export const research = withStepTracking(
     const apiKey = await resolveOrgApiKey(orgId);
     // The org's chosen model (Settings → Models), platform default otherwise —
     // resolved at call time through the 10-minute Redis cache (Unit 33).
-    const { researchModel } = await resolveOrgModels(orgId);
+    const { researchModel, researchTier } = await resolveOrgModels(orgId);
 
     logger.info(
-      { activity: "research", orgId, topic, model: researchModel },
+      { activity: "research", orgId, topic, model: researchModel, modelTier: researchTier },
       "research agent running",
     );
     // Stream the synthesized summary token-by-token to the dashboard (Unit 20).
@@ -81,10 +81,10 @@ export const writeDraft = withStepTracking(
     const { orgId, topic, keywords, findings, tone, wordCount } = input;
     const apiKey = await resolveOrgApiKey(orgId);
     // Org choice over platform default, same resolution as research (Unit 33).
-    const { writingModel } = await resolveOrgModels(orgId);
+    const { writingModel, writingTier } = await resolveOrgModels(orgId);
 
     logger.info(
-      { activity: "writeDraft", orgId, topic, model: writingModel },
+      { activity: "writeDraft", orgId, topic, model: writingModel, modelTier: writingTier },
       "writing agent running",
     );
     // Stream the draft markdown token-by-token to the dashboard (Unit 20).

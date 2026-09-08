@@ -137,6 +137,8 @@ beforeEach(() => {
   vi.mocked(resolveOrgModels).mockResolvedValue({
     researchModel: "anthropic/claude-sonnet-4.5",
     writingModel: "anthropic/claude-opus-4.8",
+    researchTier: "fast",
+    writingTier: "quality",
   });
 });
 
@@ -172,6 +174,8 @@ describe("research activity (org key)", () => {
     vi.mocked(resolveOrgModels).mockResolvedValue({
       researchModel: "google/gemini-3.5-flash",
       writingModel: "openai/gpt-5.5",
+      researchTier: "fast",
+      writingTier: "quality",
     });
 
     const researchArg: ResearchInput = {
@@ -272,6 +276,8 @@ describe("writeDraft activity", () => {
     vi.mocked(resolveOrgModels).mockResolvedValue({
       researchModel: "anthropic/claude-sonnet-4.5",
       writingModel: "openai/gpt-5.5-pro",
+      researchTier: "fast",
+      writingTier: "quality",
     });
 
     const writeArg: WriteDraftInput = {

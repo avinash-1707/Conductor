@@ -1,8 +1,10 @@
 import Redis from "ioredis";
 import {
   ORG_MODEL_SETTINGS_TTL_SECONDS,
+  MODEL_TIER_BY_STEP,
   orgModelSettingsSchema,
   redisKeys,
+  type ModelTier,
   type OrgModelSettings,
 } from "@conductor/shared";
 import { env } from "../env";
@@ -23,6 +25,8 @@ import { logger } from "../logger";
 export interface ResolvedOrgModels {
   researchModel: string;
   writingModel: string;
+  researchTier: ModelTier;
+  writingTier: ModelTier;
 }
 
 let client: Redis | undefined;
@@ -90,6 +94,8 @@ export async function resolveOrgModels(orgId: string): Promise<ResolvedOrgModels
   return {
     researchModel: settings.researchModel ?? env.RESEARCH_MODEL,
     writingModel: settings.writingModel ?? env.WRITING_MODEL,
+    researchTier: MODEL_TIER_BY_STEP.research,
+    writingTier: MODEL_TIER_BY_STEP.writing,
   };
 }
 

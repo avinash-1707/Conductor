@@ -27,6 +27,12 @@ export const QUERIES = {
 export const DEFAULT_RESEARCH_MODEL = "anthropic/claude-sonnet-4.5" as const;
 export const DEFAULT_WRITING_MODEL = "anthropic/claude-opus-4.8" as const;
 
+/** Platform routing policy: research favors latency; final content favors quality. */
+export const MODEL_TIER_BY_STEP = {
+  research: "fast",
+  writing: "quality",
+} as const;
+
 /** Redis pub/sub channel builders (ephemeral; architecture storage model). */
 export const redisChannels = {
   /** Step/run status events for the dashboard. */
