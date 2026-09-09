@@ -62,11 +62,17 @@ export function createRealtime(opts: {
 
   // Peer-originated canvas edits need a Socket.IO adapter; the existing Redis
   // subscriber only relays worker-originated events into this process.
-  const adapterPub = new Redis(redisUrl, { lazyConnect: false });
-  const adapterSub = adapterPub.duplicate();
+  const adapterPub = new Redis(redisUrl, { lazyConnect: true });
+  const adapterSub = new Redis(redisUrl, { lazyConnect: true });
   adapterPub.on("error", (err) => logger.warn({ err }, "realtime adapter publisher redis error"));
   adapterSub.on("error", (err) => logger.warn({ err }, "realtime adapter subscriber redis error"));
-  io.adapter(createAdapter(adapterPub, adapterSub));
+  const adapterReady = Promise.all([adapterPub.connect(), adapterSub.connect()])
+    .then(() => {
+      io.adapter(createAdapter(adapterPub, adapterSub));
+    })
+    .catch((err) => {
+      logger.error({ err }, "failed to connect realtime adapter redis clients");
+    });
 
   // Handshake auth: verify the JWT and pin the active org on the socket.
   io.use(async (socket, next) => {
@@ -263,6 +269,7 @@ export function createRealtime(opts: {
       // that state; force-disconnect is safe because they carry no durable data.
       adapterPub.disconnect();
       adapterSub.disconnect();
+      await adapterReady;
       await io.close();
     },
   };
