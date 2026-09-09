@@ -30,17 +30,19 @@ function IdField({
   node,
   takenIds,
   onRename,
+  readOnly,
 }: {
   node: GraphNode;
   takenIds: string[];
   onRename: (oldId: string, newId: string) => void;
+  readOnly: boolean;
 }) {
   const [draft, setDraft] = useState(node.id);
   const error = draft === node.id ? null : slugError(draft, takenIds);
 
   function commit(e?: FormEvent) {
     e?.preventDefault();
-    if (draft !== node.id && !error) onRename(node.id, draft);
+    if (!readOnly && draft !== node.id && !error) onRename(node.id, draft);
   }
 
   return (
@@ -49,6 +51,7 @@ function IdField({
         <Input
           id="node-id"
           value={draft}
+          disabled={readOnly}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => commit()}
           className="font-mono"
@@ -62,9 +65,11 @@ function IdField({
 function ActivityConfigFields({
   node,
   onChange,
+  readOnly,
 }: {
   node: GraphNode & { type: "research" | "write" | "publish" };
   onChange: (config: ActivityNodeConfig) => void;
+  readOnly: boolean;
 }) {
   const defaults = activityRegistry[node.type].defaults;
   return (
@@ -81,6 +86,7 @@ function ActivityConfigFields({
           max={600}
           placeholder={String(defaults.timeoutSeconds)}
           value={node.config.timeoutSeconds ?? ""}
+          disabled={readOnly}
           onChange={(e) =>
             onChange({ ...node.config, timeoutSeconds: numberValue(e.target.value) })
           }
@@ -98,6 +104,7 @@ function ActivityConfigFields({
           max={10}
           placeholder={String(defaults.maximumAttempts)}
           value={node.config.maximumAttempts ?? ""}
+          disabled={readOnly}
           onChange={(e) =>
             onChange({ ...node.config, maximumAttempts: numberValue(e.target.value) })
           }
@@ -110,9 +117,11 @@ function ActivityConfigFields({
 function ApprovalConfigFields({
   node,
   onChange,
+  readOnly,
 }: {
   node: GraphNode & { type: "approval" };
   onChange: (config: ApprovalNodeConfig) => void;
+  readOnly: boolean;
 }) {
   const defaults = activityRegistry.approval.defaults;
   return (
@@ -128,6 +137,7 @@ function ApprovalConfigFields({
         max={168}
         placeholder={String(defaults.timeoutHours)}
         value={node.config.timeoutHours ?? ""}
+        disabled={readOnly}
         onChange={(e) => onChange({ timeoutHours: numberValue(e.target.value) })}
       />
     </Field>
@@ -140,6 +150,7 @@ export function ConfigPanel({
   onConfigChange,
   onRename,
   onDelete,
+  readOnly = false,
 }: {
   node: SpecFlowNode | null;
   /** Ids of OTHER nodes (rename collision check). */
@@ -147,13 +158,12 @@ export function ConfigPanel({
   onConfigChange: (id: string, config: GraphNode["config"]) => void;
   onRename: (oldId: string, newId: string) => void;
   onDelete: (id: string) => void;
+  readOnly?: boolean;
 }) {
   if (!node) {
     return (
       <div className="rounded-xl border border-dashed border-line p-4">
-        <p className="text-xs text-muted">
-          Select a step on the canvas to configure it.
-        </p>
+        <p className="text-xs text-muted">Select a step on the canvas to configure it.</p>
       </div>
     );
   }
@@ -169,17 +179,25 @@ export function ConfigPanel({
       </div>
 
       {/* Keyed so the id draft resets when the selection moves. */}
-      <IdField key={node.id} node={graphNode} takenIds={takenIds} onRename={onRename} />
+      <IdField
+        key={node.id}
+        node={graphNode}
+        takenIds={takenIds}
+        onRename={onRename}
+        readOnly={readOnly}
+      />
 
       {graphNode.type === "approval" ? (
         <ApprovalConfigFields
           node={graphNode}
           onChange={(config) => onConfigChange(node.id, config)}
+          readOnly={readOnly}
         />
       ) : (
         <ActivityConfigFields
           node={graphNode}
           onChange={(config) => onConfigChange(node.id, config)}
+          readOnly={readOnly}
         />
       )}
 
@@ -189,6 +207,7 @@ export function ConfigPanel({
           size="sm"
           className="text-failed hover:text-failed"
           onClick={() => onDelete(node.id)}
+          disabled={readOnly}
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden />
           Remove step

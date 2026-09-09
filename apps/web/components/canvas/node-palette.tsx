@@ -23,7 +23,13 @@ const ENTRIES: {
   { type: "publish", icon: Send, blurb: "Delivers the finished draft." },
 ];
 
-export function NodePalette({ onAdd }: { onAdd: (type: GraphNodeType) => void }) {
+export function NodePalette({
+  onAdd,
+  readOnly = false,
+}: {
+  onAdd: (type: GraphNodeType) => void;
+  readOnly?: boolean;
+}) {
   function onDragStart(event: DragEvent, type: GraphNodeType) {
     event.dataTransfer.setData(NODE_DND_TYPE, type);
     event.dataTransfer.effectAllowed = "move";
@@ -31,20 +37,19 @@ export function NodePalette({ onAdd }: { onAdd: (type: GraphNodeType) => void })
 
   return (
     <div className="flex flex-row gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-      <p className="hidden text-xs uppercase tracking-wide text-muted lg:block">
-        Steps
-      </p>
+      <p className="hidden text-xs uppercase tracking-wide text-muted lg:block">Steps</p>
       {ENTRIES.map(({ type, icon: Icon, blurb }) => {
         const kind = activityRegistry[type].kind;
         return (
           <button
             key={type}
             type="button"
-            draggable
-            onDragStart={(e) => onDragStart(e, type)}
+            draggable={!readOnly}
+            disabled={readOnly}
+            onDragStart={(e) => !readOnly && onDragStart(e, type)}
             onClick={() => onAdd(type)}
             title={`Add ${type} (drag onto the canvas, or click to append)`}
-            className="group w-44 shrink-0 cursor-grab rounded-lg border border-line-soft bg-surface px-3 py-2.5 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing lg:w-full"
+            className="group w-44 shrink-0 cursor-grab rounded-lg border border-line-soft bg-surface px-3 py-2.5 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-55 lg:w-full"
           >
             <span className="flex items-center justify-between gap-2">
               <span className="flex min-w-0 items-center gap-2">

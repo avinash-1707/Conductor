@@ -45,6 +45,9 @@ type EditorCanvasProps = {
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
   onDropNode: (type: GraphNodeType, position: { x: number; y: number }) => void;
+  onNodesDelete: (nodes: SpecFlowNode[]) => void;
+  onEdgesDelete: (edges: Edge[]) => void;
+  readOnly?: boolean;
   /** Bump to refit the viewport (click-to-add appends past the right edge). */
   fitSignal?: number;
 };
@@ -57,29 +60,27 @@ function EditorCanvasInner(props: EditorCanvasProps) {
     if (!fitSignal) return;
     // Instant refit (no animated zoom — motion principles); next frame so the
     // freshly added node is measured first.
-    const frame = requestAnimationFrame(() =>
-      void fitView({ padding: 0.2, maxZoom: 1, duration: 0 }),
+    const frame = requestAnimationFrame(
+      () => void fitView({ padding: 0.2, maxZoom: 1, duration: 0 }),
     );
     return () => cancelAnimationFrame(frame);
   }, [fitSignal, fitView]);
 
-  const onDragOver = useCallback((event: DragEvent) => {
-    if (!event.dataTransfer.types.includes(NODE_DND_TYPE)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }, []);
+  const onDragOver = useCallback(
+    (event: DragEvent) => {
+      if (props.readOnly || !event.dataTransfer.types.includes(NODE_DND_TYPE)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    },
+    [props.readOnly],
+  );
 
   const onDrop = useCallback(
     (event: DragEvent) => {
-      const parsed = graphNodeTypeSchema.safeParse(
-        event.dataTransfer.getData(NODE_DND_TYPE),
-      );
-      if (!parsed.success) return;
+      const parsed = graphNodeTypeSchema.safeParse(event.dataTransfer.getData(NODE_DND_TYPE));
+      if (props.readOnly || !parsed.success) return;
       event.preventDefault();
-      props.onDropNode(
-        parsed.data,
-        screenToFlowPosition({ x: event.clientX, y: event.clientY }),
-      );
+      props.onDropNode(parsed.data, screenToFlowPosition({ x: event.clientX, y: event.clientY }));
     },
     [props, screenToFlowPosition],
   );
@@ -94,9 +95,14 @@ function EditorCanvasInner(props: EditorCanvasProps) {
       onConnect={props.onConnect}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onNodesDelete={props.onNodesDelete}
+      onEdgesDelete={props.onEdgesDelete}
       defaultEdgeOptions={SPEC_EDGE_OPTIONS}
       connectionLineStyle={connectionLineStyle}
-      deleteKeyCode={["Backspace", "Delete"]}
+      deleteKeyCode={props.readOnly ? null : ["Backspace", "Delete"]}
+      nodesDraggable={!props.readOnly}
+      nodesConnectable={!props.readOnly}
+      elementsSelectable={!props.readOnly}
       fitView
       fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
       minZoom={0.3}

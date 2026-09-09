@@ -3,11 +3,14 @@
 import {
   approvalListResponseSchema,
   approvalResourceSchema,
+  canvasDraftResourceSchema,
+  createCanvasDraftRequestSchema,
   definitionListResponseSchema,
   definitionResourceSchema,
   launchDefinitionRunSchema,
   launchRunRequestSchema,
   saveDefinitionRequestSchema,
+  saveCanvasDraftRequestSchema,
   modelCatalogResponseSchema,
   orgModelSettingsResponseSchema,
   runDetailResponseSchema,
@@ -17,6 +20,7 @@ import {
   updateOrgModelSettingsSchema,
   type ApprovalListResponse,
   type ApprovalResource,
+  type CanvasDraftResource,
   type BlogPostPipelineInput,
   type DefinitionListResponse,
   type DefinitionResource,
@@ -106,7 +110,11 @@ export const api = {
     get: (id: string): Promise<DefinitionResource> =>
       apiFetch(`/definitions/${id}`, { schema: definitionResourceSchema }),
     /** Latest version per name; pass `name` for that workflow's full history. */
-    list: (params?: { name?: string; cursor?: string; limit?: number }): Promise<DefinitionListResponse> => {
+    list: (params?: {
+      name?: string;
+      cursor?: string;
+      limit?: number;
+    }): Promise<DefinitionListResponse> => {
       const q = new URLSearchParams();
       if (params?.name) q.set("name", params.name);
       if (params?.cursor) q.set("cursor", params.cursor);
@@ -129,6 +137,22 @@ export const api = {
         method: "POST",
         body: launchDefinitionRunSchema.parse({ params }),
         schema: runSchema,
+      }),
+  },
+  canvasDrafts: {
+    create: (input?: { sourceDefinitionId?: string }): Promise<CanvasDraftResource> =>
+      apiFetch(`/canvas-drafts`, {
+        method: "POST",
+        body: createCanvasDraftRequestSchema.parse(input ?? {}),
+        schema: canvasDraftResourceSchema,
+      }),
+    get: (id: string): Promise<CanvasDraftResource> =>
+      apiFetch(`/canvas-drafts/${id}`, { schema: canvasDraftResourceSchema }),
+    save: (id: string, revision: number): Promise<DefinitionResource> =>
+      apiFetch(`/canvas-drafts/${id}/save`, {
+        method: "POST",
+        body: saveCanvasDraftRequestSchema.parse({ revision }),
+        schema: definitionResourceSchema,
       }),
   },
   runs: {
