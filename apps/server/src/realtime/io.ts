@@ -258,8 +258,11 @@ export function createRealtime(opts: {
   return {
     async close() {
       await sub.quit().catch(() => undefined);
-      await adapterPub.quit().catch(() => undefined);
-      await adapterSub.quit().catch(() => undefined);
+      // The adapter clients can still be establishing their first connection
+      // during shutdown (notably in short-lived tests). `quit()` rejects in
+      // that state; force-disconnect is safe because they carry no durable data.
+      adapterPub.disconnect();
+      adapterSub.disconnect();
       await io.close();
     },
   };
