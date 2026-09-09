@@ -13,4 +13,5 @@ export * from "./schemas/interpreter";
 export * from "./schemas/models";
 export * from "./schemas/llm-observability";
 export * from "./schemas/auth-forms";
+export * from "./schemas/collaboration";
 export * from "./constants";

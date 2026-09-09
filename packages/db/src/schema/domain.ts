@@ -17,8 +17,10 @@ import type {
   GraphSpec,
   PublishReceipt,
   LlmCallObservation,
+  CanvasDocument,
+  CanvasOperation,
 } from "@conductor/shared";
-import { organization } from "./auth";
+import { organization, user } from "./auth";
 
 /**
  * Conductor domain tables (Unit 10) — migration #2. Every table carries a
@@ -116,10 +118,9 @@ export const workflowRuns = pgTable(
     temporalRunId: text("temporal_run_id"),
     // The run this one was resumed from (Unit 22). Self-FK typed explicitly —
     // drizzle needs the annotation to break the circular inference.
-    resumedFromRunId: uuid("resumed_from_run_id").references(
-      (): AnyPgColumn => workflowRuns.id,
-      { onDelete: "set null" },
-    ),
+    resumedFromRunId: uuid("resumed_from_run_id").references((): AnyPgColumn => workflowRuns.id, {
+      onDelete: "set null",
+    }),
     status: runStatusEnum("status").default("pending").notNull(),
     // Template-shaped launch params (Unit 26) — parse against the template's
     // own schema on read; never assume the blog shape.
@@ -246,8 +247,88 @@ export const publishDeliveries = pgTable(
   ],
 );
 
+/**
+ * Mutable collaboration state is deliberately separate from immutable workflow
+ * definitions. The document is the source of truth; operations provide audit
+ * history and idempotency for Socket.IO retries.
+ */
+export const canvasDrafts = pgTable(
+  "canvas_drafts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    sourceDefinitionId: uuid("source_definition_id").references(() => workflowDefinitions.id, {
+      onDelete: "set null",
+    }),
+    document: jsonb("document").$type<CanvasDocument>().notNull(),
+    revision: integer("revision").default(0).notNull(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    savedDefinitionId: uuid("saved_definition_id").references(() => workflowDefinitions.id, {
+      onDelete: "set null",
+    }),
+    savedRevision: integer("saved_revision"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("canvas_drafts_org_updated_idx").on(t.orgId, t.updatedAt)],
+);
+
+export const canvasDraftOperations = pgTable(
+  "canvas_draft_operations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    draftId: uuid("draft_id")
+      .notNull()
+      .references(() => canvasDrafts.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    clientOperationId: uuid("client_operation_id").notNull(),
+    operationHash: text("operation_hash").notNull(),
+    revision: integer("revision").notNull(),
+    authorUserId: text("author_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    operation: jsonb("operation").$type<CanvasOperation>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("canvas_draft_operations_client_uidx").on(
+      t.draftId,
+      t.authorUserId,
+      t.clientOperationId,
+    ),
+    uniqueIndex("canvas_draft_operations_revision_uidx").on(t.draftId, t.revision),
+    index("canvas_draft_operations_org_draft_idx").on(t.orgId, t.draftId),
+  ],
+);
+
 export const workflowDefinitionsRelations = relations(workflowDefinitions, ({ many }) => ({
   runs: many(workflowRuns),
+  canvasDrafts: many(canvasDrafts),
+}));
+
+export const canvasDraftsRelations = relations(canvasDrafts, ({ one, many }) => ({
+  sourceDefinition: one(workflowDefinitions, {
+    fields: [canvasDrafts.sourceDefinitionId],
+    references: [workflowDefinitions.id],
+    relationName: "canvasDraftSourceDefinition",
+  }),
+  savedDefinition: one(workflowDefinitions, {
+    fields: [canvasDrafts.savedDefinitionId],
+    references: [workflowDefinitions.id],
+    relationName: "canvasDraftSavedDefinition",
+  }),
+  operations: many(canvasDraftOperations),
+}));
+
+export const canvasDraftOperationsRelations = relations(canvasDraftOperations, ({ one }) => ({
+  draft: one(canvasDrafts, {
+    fields: [canvasDraftOperations.draftId],
+    references: [canvasDrafts.id],
+  }),
 }));
 
 export const workflowRunsRelations = relations(workflowRuns, ({ one, many }) => ({

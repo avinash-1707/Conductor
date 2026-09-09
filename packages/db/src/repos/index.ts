@@ -6,6 +6,7 @@ import { createDefinitionsRepo } from "./definitions";
 import { createApiKeysRepo } from "./api-keys";
 import { createModelSettingsRepo } from "./model-settings";
 import { createPublishDeliveriesRepo } from "./publish-deliveries";
+import { createCanvasDraftsRepo } from "./canvas-drafts";
 
 /**
  * Org-scoped repository factory — the only sanctioned way to touch domain
@@ -21,6 +22,7 @@ export function createRepos(db: Db) {
     apiKeys: createApiKeysRepo(db),
     modelSettings: createModelSettingsRepo(db),
     publishDeliveries: createPublishDeliveriesRepo(db),
+    canvasDrafts: createCanvasDraftsRepo(db),
   };
 }
 
@@ -57,3 +59,4 @@ export {
   type PublishDeliveriesRepo,
   type PublishDelivery,
 } from "./publish-deliveries";
+export { createCanvasDraftsRepo, type CanvasDraftsRepo, type CanvasDraft } from "./canvas-drafts";
