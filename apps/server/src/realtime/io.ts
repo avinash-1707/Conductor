@@ -46,6 +46,21 @@ interface SocketData {
 const STATUS_RE = /^run:(.+):status$/;
 const STREAM_RE = /^run:(.+):stream$/;
 
+async function quitDuringShutdown(client: Redis): Promise<void> {
+  if (client.status === "wait" || client.status === "end") {
+    client.disconnect(false);
+    return;
+  }
+  try {
+    await client.quit();
+  } catch (err) {
+    // A connection that closes between the status check and quit has no queued
+    // durable work. ioredis reports this exact race as a rejected quit promise.
+    if (err instanceof Error && err.message === "Connection is closed.") return;
+    throw err;
+  }
+}
+
 export function createRealtime(opts: {
   httpServer: HttpServer;
   verify: VerifyToken;
@@ -66,12 +81,16 @@ export function createRealtime(opts: {
   const adapterSub = new Redis(redisUrl, { lazyConnect: true });
   adapterPub.on("error", (err) => logger.warn({ err }, "realtime adapter publisher redis error"));
   adapterSub.on("error", (err) => logger.warn({ err }, "realtime adapter subscriber redis error"));
+  let closing = false;
+  let adapterAttached = false;
   const adapterReady = Promise.all([adapterPub.connect(), adapterSub.connect()])
     .then(() => {
+      if (closing) return;
       io.adapter(createAdapter(adapterPub, adapterSub));
+      adapterAttached = true;
     })
     .catch((err) => {
-      logger.error({ err }, "failed to connect realtime adapter redis clients");
+      if (!closing) logger.error({ err }, "failed to connect realtime adapter redis clients");
     });
 
   // Handshake auth: verify the JWT and pin the active org on the socket.
@@ -261,16 +280,28 @@ export function createRealtime(opts: {
     }
   });
 
+  let closePromise: Promise<void> | undefined;
   return {
-    async close() {
-      await sub.quit().catch(() => undefined);
-      // The adapter clients can still be establishing their first connection
-      // during shutdown (notably in short-lived tests). `quit()` rejects in
-      // that state; force-disconnect is safe because they carry no durable data.
-      adapterPub.disconnect();
-      adapterSub.disconnect();
-      await adapterReady;
-      await io.close();
+    close() {
+      closePromise ??= (async () => {
+        closing = true;
+        // An adapter that never attached owns no subscriptions, so cancel its
+        // initial connection before waiting for the handled readiness promise.
+        if (!adapterAttached) {
+          adapterPub.disconnect(false);
+          adapterSub.disconnect(false);
+        }
+        await adapterReady;
+        // Socket.IO invokes adapter.close(), which unsubscribes before Redis is
+        // shut down. Reversing this order rejects ioredis subscription commands.
+        await io.close();
+        await Promise.all([
+          quitDuringShutdown(sub),
+          quitDuringShutdown(adapterPub),
+          quitDuringShutdown(adapterSub),
+        ]);
+      })();
+      return closePromise;
     },
   };
 }
