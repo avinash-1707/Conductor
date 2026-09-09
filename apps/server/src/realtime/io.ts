@@ -1,8 +1,21 @@
 import type { Server as HttpServer } from "node:http";
 import Redis from "ioredis";
 import { Server, type Socket } from "socket.io";
-import { runEventSchema, tokenStreamEventSchema } from "@conductor/shared";
+import { createAdapter } from "@socket.io/redis-adapter";
+import {
+  canvasJoinRequestSchema,
+  canvasJoinResponseSchema,
+  canvasOperationAppliedSchema,
+  canvasOperationRequestSchema,
+  canvasOperationResponseSchema,
+  runEventSchema,
+  tokenStreamEventSchema,
+} from "@conductor/shared";
+import { and, eq } from "drizzle-orm";
+import { member } from "@conductor/db";
 import type { VerifyToken } from "../auth/verify";
+import { db } from "../db/client";
+import { toCanvasDraftResource } from "../routes/canvas-drafts";
 import { logger } from "../logger";
 import { repos } from "../repos/index";
 
@@ -27,6 +40,7 @@ export interface Realtime {
 
 interface SocketData {
   orgId: string;
+  userId: string;
 }
 
 const STATUS_RE = /^run:(.+):status$/;
@@ -46,6 +60,14 @@ export function createRealtime(opts: {
     cors: { origin: corsOrigin, credentials: true },
   });
 
+  // Peer-originated canvas edits need a Socket.IO adapter; the existing Redis
+  // subscriber only relays worker-originated events into this process.
+  const adapterPub = new Redis(redisUrl, { lazyConnect: false });
+  const adapterSub = adapterPub.duplicate();
+  adapterPub.on("error", (err) => logger.warn({ err }, "realtime adapter publisher redis error"));
+  adapterSub.on("error", (err) => logger.warn({ err }, "realtime adapter subscriber redis error"));
+  io.adapter(createAdapter(adapterPub, adapterSub));
+
   // Handshake auth: verify the JWT and pin the active org on the socket.
   io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
@@ -60,6 +82,7 @@ export function createRealtime(opts: {
         return;
       }
       (socket.data as SocketData).orgId = claims.activeOrganizationId;
+      (socket.data as SocketData).userId = claims.userId;
       next();
     } catch {
       next(new Error("unauthorized"));
@@ -67,7 +90,7 @@ export function createRealtime(opts: {
   });
 
   io.on("connection", (socket: Socket) => {
-    const { orgId } = socket.data as SocketData;
+    const { orgId, userId } = socket.data as SocketData;
 
     // Every authed socket joins its org's room (Unit 23): org-wide events
     // (new approval requests) reach the queue/badge without a run subscription.
@@ -90,6 +113,99 @@ export function createRealtime(opts: {
 
     socket.on("unsubscribe", (runId: unknown) => {
       if (typeof runId === "string") void socket.leave(runId);
+    });
+
+    async function membershipRole(): Promise<string | undefined> {
+      const rows = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
+        .limit(1);
+      return rows[0]?.role;
+    }
+
+    socket.on("canvas.join", async (raw: unknown, ack?: (res: unknown) => void) => {
+      const request = canvasJoinRequestSchema.safeParse(raw);
+      if (!request.success) {
+        ack?.(canvasJoinResponseSchema.parse({ ok: false, code: "bad_request" }));
+        return;
+      }
+      if (!(await membershipRole())) {
+        ack?.(canvasJoinResponseSchema.parse({ ok: false, code: "not_found" }));
+        return;
+      }
+      const draft = await repos.canvasDrafts.findDraftById({ orgId, id: request.data.draftId });
+      if (!draft) {
+        ack?.(canvasJoinResponseSchema.parse({ ok: false, code: "not_found" }));
+        return;
+      }
+      await socket.join(`canvas:${draft.id}`);
+      ack?.(canvasJoinResponseSchema.parse({ ok: true, draft: toCanvasDraftResource(draft) }));
+    });
+
+    socket.on("canvas.leave", (raw: unknown) => {
+      const request = canvasJoinRequestSchema.safeParse(raw);
+      if (request.success) void socket.leave(`canvas:${request.data.draftId}`);
+    });
+
+    socket.on("canvas.operation", async (raw: unknown, ack?: (res: unknown) => void) => {
+      const request = canvasOperationRequestSchema.safeParse(raw);
+      if (!request.success) {
+        ack?.(canvasOperationResponseSchema.parse({ ok: false, code: "bad_request" }));
+        return;
+      }
+      if ((await membershipRole()) !== "owner") {
+        ack?.(canvasOperationResponseSchema.parse({ ok: false, code: "forbidden" }));
+        return;
+      }
+      try {
+        const result = await repos.canvasDrafts.applyOperation({
+          orgId,
+          userId,
+          ...request.data,
+        });
+        if (result.kind === "not_found") {
+          ack?.(canvasOperationResponseSchema.parse({ ok: false, code: "not_found" }));
+          return;
+        }
+        if (result.kind === "closed") {
+          ack?.(canvasOperationResponseSchema.parse({ ok: false, code: "closed" }));
+          return;
+        }
+        if (result.kind === "idempotency_mismatch") {
+          ack?.(canvasOperationResponseSchema.parse({ ok: false, code: "bad_request" }));
+          return;
+        }
+        if (result.kind === "stale") {
+          ack?.(
+            canvasOperationResponseSchema.parse({
+              ok: false,
+              code: "stale_revision",
+              draft: toCanvasDraftResource(result.draft),
+            }),
+          );
+          return;
+        }
+        const response = canvasOperationResponseSchema.parse({
+          ok: true,
+          revision: result.revision,
+          operation: result.operation,
+        });
+        ack?.(response);
+        if (!result.idempotent) {
+          io.to(`canvas:${request.data.draftId}`).emit(
+            "canvas.operation.applied",
+            canvasOperationAppliedSchema.parse({
+              draftId: request.data.draftId,
+              revision: result.revision,
+              operation: result.operation,
+            }),
+          );
+        }
+      } catch (err) {
+        logger.warn({ err, draftId: request.data.draftId }, "canvas operation rejected");
+        ack?.(canvasOperationResponseSchema.parse({ ok: false, code: "bad_request" }));
+      }
     });
   });
 
@@ -142,6 +258,8 @@ export function createRealtime(opts: {
   return {
     async close() {
       await sub.quit().catch(() => undefined);
+      await adapterPub.quit().catch(() => undefined);
+      await adapterSub.quit().catch(() => undefined);
       await io.close();
     },
   };

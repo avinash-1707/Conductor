@@ -14,6 +14,7 @@ import { runRoutes } from "./routes/runs";
 import { approvalRoutes } from "./routes/approvals";
 import { templateRoutes } from "./routes/templates";
 import { definitionRoutes } from "./routes/definitions";
+import { canvasDraftRoutes } from "./routes/canvas-drafts";
 import { registerAuth } from "./auth/plugin";
 import { createSessionVerifier } from "./auth/verify";
 import { createRealtime } from "./realtime/io";
@@ -109,6 +110,7 @@ export async function buildApp(opts: {
     );
     await app.register(templateRoutes());
     await app.register(definitionRoutes(opts.temporal));
+    await app.register(canvasDraftRoutes);
     if (opts.temporal) {
       await app.register(runRoutes(opts.temporal));
       await app.register(approvalRoutes(opts.temporal));
